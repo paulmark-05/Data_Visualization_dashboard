@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Insights Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <header class="header">
+            <h1>📊 Data Insights Dashboard</h1>
+            <p class="subtitle">Upload, Analyze, and Visualize Your Data</p>
+        </header>
+
+        <div class="dashboard-content">
+            <!-- Left Sidebar -->
+            <aside class="sidebar-left">
+                <!-- File Upload Section -->
+                <section class="card upload-section">
+                    <h2>📁 Upload Files</h2>
+                    <p class="upload-limit"><span id="fileCount">0</span>/5 files uploaded</p>
+                    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls,.json" multiple style="display: none;">
+                    <button class="btn btn--primary" id="uploadBtn" onclick="document.getElementById('fileInput').click()">
+                        + Upload Data
+                    </button>
+                    <div id="fileList" class="file-list"></div>
+                </section>
+
+                <!-- Filters Section -->
+                <section class="card filters-section">
+                    <h2>🔍 Filters</h2>
+                    <div id="filtersContainer" class="filters-container">
+                        <p class="empty-state">Upload data to see filters</p>
+                    </div>
+                </section>
+
+                <!-- Data Quality Section -->
+                <section class="card quality-section">
+                    <h2>⚠️ Data Quality</h2>
+                    <div id="qualityContainer" class="quality-container">
+                        <p class="empty-state">Upload data to check quality</p>
+                    </div>
+                </section>
+            </aside>
+
+            <!-- Main Content Area -->
+            <main class="main-content">
+                <!-- Empty State -->
+                <div id="emptyState" class="empty-state-main">
+                    <div class="empty-icon">📊</div>
+                    <h2>Welcome to Data Insights Dashboard</h2>
+                    <p>Upload your data files (CSV, Excel, or JSON) to begin analyzing</p>
+                    <button class="btn btn--primary btn--lg" onclick="document.getElementById('fileInput').click()">
+                        Upload Your First File
+                    </button>
+                </div>
+
+                <!-- Data View -->
+                <div id="dataView" class="data-view" style="display: none;">
+                    <!-- Summary Stats -->
+                    <section class="card stats-section">
+                        <h2>📈 Data Summary</h2>
+                        <div id="summaryStats" class="summary-stats"></div>
+                    </section>
+
+                    <!-- Visualization Controls -->
+                    <section class="card viz-controls">
+                        <div class="controls-header">
+                            <h2>📊 Visualization</h2>
+                            <div class="controls-row">
+                                <div class="control-group">
+                                    <label>Chart Type:</label>
+                                    <select id="chartType" class="form-control">
+                                        <option value="bar">Bar Chart</option>
+                                        <option value="line">Line Chart</option>
+                                        <option value="scatter">Scatter Plot</option>
+                                        <option value="pie">Pie Chart</option>
+                                        <option value="doughnut">Doughnut Chart</option>
+                                    </select>
+                                </div>
+                                <div class="control-group">
+                                    <label>X-Axis:</label>
+                                    <select id="xAxis" class="form-control"></select>
+                                </div>
+                                <div class="control-group">
+                                    <label>Y-Axis:</label>
+                                    <select id="yAxis" class="form-control"></select>
+                                </div>
+                                <button class="btn btn--secondary" id="updateChart">Update Chart</button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="mainChart"></canvas>
+                        </div>
+                    </section>
+
+                    <!-- Insights Section -->
+                    <section class="card insights-section">
+                        <h2>💡 Key Insights</h2>
+                        <div id="insightsContainer" class="insights-container"></div>
+                    </section>
+
+                    <!-- Data Table -->
+                    <section class="card table-section">
+                        <div class="table-header">
+                            <h2>📋 Data Table</h2>
+                            <div class="table-controls">
+                                <input type="text" id="searchInput" class="form-control" placeholder="Search...">
+                                <span id="tableInfo" class="table-info"></span>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table id="dataTable">
+                                <thead id="tableHead"></thead>
+                                <tbody id="tableBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="pagination" id="pagination"></div>
+                    </section>
+                </div>
+            </main>
+
+            <!-- Right Sidebar - AI Assistant -->
+            <aside class="sidebar-right">
+                <section class="card chat-section">
+                    <h2>🤖 AI Assistant</h2>
+                    <div class="chat-container" id="chatContainer">
+                        <div class="chat-message bot">
+                            <div class="message-content">
+                                Hello! I'm your data assistant. Upload some data and I can help you analyze it, find insights, check for missing values, and suggest visualizations.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="example-questions">
+                        <p class="example-label">Try asking:</p>
+                        <button class="example-question" onclick="askQuestion('Summarize the data')">Summarize the data</button>
+                        <button class="example-question" onclick="askQuestion('What columns have missing values?')">Missing values?</button>
+                        <button class="example-question" onclick="askQuestion('Show me correlations')">Show correlations</button>
+                        <button class="example-question" onclick="askQuestion('Check data quality')">Data quality</button>
+                    </div>
+                    <div class="chat-input-container">
+                        <input type="text" id="chatInput" class="form-control" placeholder="Ask about your data...">
+                        <button class="btn btn--primary" id="sendChat">Send</button>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
