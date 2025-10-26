@@ -449,77 +449,173 @@ function generateFilters() {
         return;
     }
 
-    let html = '<div class="active-filters" id="activeFilters"></div>';
+    let html = '<div style="margin-bottom: 20px;">';
+    html += '<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">';
     html += '<button class="btn btn-danger" onclick="clearAllFilters()">Clear All Filters</button>';
+    html += '<div id="filterBadge" style="display: none; background: var(--color-primary); color: white; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;"></div>';
+    html += '</div>';
+    html += '<div class="active-filters" id="activeFilters"></div>';
+    html += '</div>';
     html += '<div class="filters-grid">';
 
     categoricalColumns.forEach(col => {
-        const uniqueValues = [...new Set(data.map(row => row[col]).filter(v => v))];
+        const uniqueValues = [...new Set(data.map(row => row[col]).filter(v => v))].sort();
         html += '<div class="filter-card">';
-        html += `<label>${col}</label>`;
-        html += `<select onchange="applyFilter('${col}', this.value)" id="filter-${col}">`;
-        html += '<option value="">All</option>';
+        html += `<label style="font-weight: 600; margin-bottom: 12px; display: block;">${col}</label>`;
+        html += '<div style="max-height: 200px; overflow-y: auto;">';
         uniqueValues.forEach(val => {
-            html += `<option value="${val}">${val}</option>`;
+            const safeVal = String(val).replace(/'/g, "\\'");
+            html += `<div style="margin-bottom: 8px;">`;
+            html += `<label style="display: flex; align-items: center; cursor: pointer; font-weight: normal;">`;
+            html += `<input type="checkbox" class="filter-checkbox" data-column="${col}" data-value="${safeVal}" style="margin-right: 8px; cursor: pointer;">`;
+            html += `<span>${val}</span>`;
+            html += `</label>`;
+            html += `</div>`;
         });
-        html += '</select>';
+        html += '</div>';
         html += '</div>';
     });
 
     html += '</div>';
     container.innerHTML = html;
+
+    // Attach event listeners to checkboxes
+    document.querySelectorAll('.filter-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const column = this.dataset.column;
+            const value = this.dataset.value;
+            
+            if (!appState.activeFilters[column]) {
+                appState.activeFilters[column] = [];
+            }
+            
+            if (this.checked) {
+                if (!appState.activeFilters[column].includes(value)) {
+                    appState.activeFilters[column].push(value);
+                }
+            } else {
+                appState.activeFilters[column] = appState.activeFilters[column].filter(v => v !== value);
+            }
+            
+            // Remove empty filter arrays
+            if (appState.activeFilters[column].length === 0) {
+                delete appState.activeFilters[column];
+            }
+            
+            applyFilters();
+        });
+    });
 }
 
-function applyFilter(column, value) {
-    if (value === '') {
-        delete appState.activeFilters[column];
-    } else {
-        appState.activeFilters[column] = value;
-    }
-
-    // Apply filters
-    appState.filteredData = appState.uploadedData.filter(row => {
-        for (let col in appState.activeFilters) {
-            if (row[col] !== appState.activeFilters[col]) {
-                return false;
-            }
+function applyFilters() {
+    // Start with original data
+    let filtered = [...appState.originalData];
+    
+    // Apply each active filter
+    Object.keys(appState.activeFilters).forEach(column => {
+        const selectedValues = appState.activeFilters[column];
+        if (selectedValues && selectedValues.length > 0) {
+            filtered = filtered.filter(row => 
+                selectedValues.includes(String(row[column]))
+            );
         }
-        return true;
     });
-
+    
+    // Update state
+    appState.filteredData = filtered;
+    appState.uploadedData = filtered;
+    
+    // Re-render all sections that display data
     updateActiveFilters();
-    generateVisualizations();
+    updateFilterBadge();
+    displayDataPreview(filtered);
+    renderAllVisualizations();
+    generateInsights();
+    
+    // Update data overview counts
+    if (filtered.length !== appState.originalData.length) {
+        document.getElementById('rowCount').textContent = `${filtered.length} (filtered from ${appState.originalData.length})`;
+    } else {
+        document.getElementById('rowCount').textContent = appState.originalData.length;
+    }
 }
 
 function updateActiveFilters() {
     const container = document.getElementById('activeFilters');
+    if (!container) return;
+    
     let html = '';
     
     Object.keys(appState.activeFilters).forEach(col => {
-        html += `<div class="filter-chip">${col}: ${appState.activeFilters[col]} <button onclick="removeFilter('${col}')">×</button></div>`;
+        const values = appState.activeFilters[col];
+        values.forEach(val => {
+            const safeCol = String(col).replace(/'/g, "\\'");
+            const safeVal = String(val).replace(/'/g, "\\'");
+            html += `<div class="filter-chip">${col}: ${val} <button onclick="removeFilterValue('${safeCol}', '${safeVal}')">×</button></div>`;
+        });
     });
     
     container.innerHTML = html;
 }
 
-function removeFilter(column) {
-    delete appState.activeFilters[column];
-    document.getElementById(`filter-${column}`).value = '';
-    applyFilter(column, '');
+function updateFilterBadge() {
+    const badge = document.getElementById('filterBadge');
+    if (!badge) return;
+    
+    const filterCount = Object.keys(appState.activeFilters).reduce((sum, col) => 
+        sum + appState.activeFilters[col].length, 0
+    );
+    
+    if (filterCount > 0) {
+        badge.textContent = `${filterCount} filter${filterCount > 1 ? 's' : ''} active`;
+        badge.style.display = 'block';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function removeFilterValue(column, value) {
+    if (appState.activeFilters[column]) {
+        appState.activeFilters[column] = appState.activeFilters[column].filter(v => v !== value);
+        
+        if (appState.activeFilters[column].length === 0) {
+            delete appState.activeFilters[column];
+        }
+    }
+    
+    // Uncheck the corresponding checkbox
+    const checkbox = document.querySelector(`.filter-checkbox[data-column="${column}"][data-value="${value}"]`);
+    if (checkbox) {
+        checkbox.checked = false;
+    }
+    
+    applyFilters();
 }
 
 function clearAllFilters() {
     appState.activeFilters = {};
-    appState.filteredData = [...appState.uploadedData];
+    appState.filteredData = [...appState.originalData];
+    appState.uploadedData = [...appState.originalData];
     
-    const selects = document.querySelectorAll('[id^="filter-"]');
-    selects.forEach(select => select.value = '');
+    // Reset all filter checkboxes
+    document.querySelectorAll('.filter-checkbox').forEach(cb => cb.checked = false);
     
+    // Re-render everything with original data
     updateActiveFilters();
-    generateVisualizations();
+    updateFilterBadge();
+    displayDataPreview(appState.originalData);
+    renderAllVisualizations();
+    generateInsights();
+    
+    // Reset data overview count
+    document.getElementById('rowCount').textContent = appState.originalData.length;
 }
 
 // Visualizations
+function renderAllVisualizations() {
+    generateVisualizations();
+}
+
 function generateVisualizations() {
     const container = document.getElementById('visualizationsContainer');
     const data = appState.filteredData;
@@ -629,7 +725,12 @@ function generateVisualizations() {
 
 function createBarChart() {
     const column = document.getElementById('bar-column').value;
-    const data = appState.filteredData;
+    const data = appState.filteredData.length > 0 ? appState.filteredData : appState.uploadedData;
+    
+    if (data.length === 0) {
+        document.getElementById('chart-bar').parentElement.innerHTML = '<p style="text-align: center; color: var(--color-text-secondary); padding: 40px;">No data matches the current filters</p>';
+        return;
+    }
     
     const frequency = {};
     data.forEach(row => {
@@ -661,7 +762,12 @@ function createBarChart() {
 
 function createLineChart() {
     const column = document.getElementById('line-column').value;
-    const data = appState.filteredData;
+    const data = appState.filteredData.length > 0 ? appState.filteredData : appState.uploadedData;
+    
+    if (data.length === 0) {
+        document.getElementById('chart-line').parentElement.innerHTML = '<p style="text-align: center; color: var(--color-text-secondary); padding: 40px;">No data matches the current filters</p>';
+        return;
+    }
     
     const values = data.map(row => parseFloat(row[column])).filter(v => !isNaN(v));
     
@@ -691,7 +797,12 @@ function createLineChart() {
 
 function createPieChart() {
     const column = document.getElementById('pie-column').value;
-    const data = appState.filteredData;
+    const data = appState.filteredData.length > 0 ? appState.filteredData : appState.uploadedData;
+    
+    if (data.length === 0) {
+        document.getElementById('chart-pie').parentElement.innerHTML = '<p style="text-align: center; color: var(--color-text-secondary); padding: 40px;">No data matches the current filters</p>';
+        return;
+    }
     
     const frequency = {};
     data.forEach(row => {
@@ -720,7 +831,12 @@ function createPieChart() {
 function createScatterChart() {
     const xCol = document.getElementById('scatter-x').value;
     const yCol = document.getElementById('scatter-y').value;
-    const data = appState.filteredData;
+    const data = appState.filteredData.length > 0 ? appState.filteredData : appState.uploadedData;
+    
+    if (data.length === 0) {
+        document.getElementById('chart-scatter').parentElement.innerHTML = '<p style="text-align: center; color: var(--color-text-secondary); padding: 40px;">No data matches the current filters</p>';
+        return;
+    }
     
     const points = data.map(row => ({
         x: parseFloat(row[xCol]),
@@ -788,7 +904,7 @@ function addChatMessage(type, message) {
 }
 
 function processAIQuestion(question) {
-    const data = appState.filteredData;
+    const data = appState.filteredData.length > 0 ? appState.filteredData : appState.uploadedData;
     const lowerQ = question.toLowerCase();
     
     if (data.length === 0) {
