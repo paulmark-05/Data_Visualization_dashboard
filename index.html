@@ -3,154 +3,216 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Insights Dashboard</title>
-    <link rel="stylesheet" href="style.css">
+    <title>AI Data Insights Platform</title>
+    <!-- Load Tailwind CSS CDN for utility classes -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load SheetJS for file parsing (.csv, .xlsx, .json) -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Load Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Load Lucide Icons as a module -->
+    <script type="module" src="https://cdn.jsdelivr.net/npm/lucide-js@latest/dist/umd/lucide.js"></script>
+    <!-- Link to Custom Stylesheet -->
+    <link rel="stylesheet" href="style.css"> 
 </head>
-<body>
-    <div class="dashboard">
-        <!-- Header -->
-        <header class="header">
-            <h1>📊 Data Insights Dashboard</h1>
-            <p class="subtitle">Upload, Analyze, and Visualize Your Data</p>
-        </header>
+<body class="antialiased">
 
-        <div class="dashboard-content">
-            <!-- Left Sidebar -->
-            <aside class="sidebar-left">
+    <!-- Header -->
+    <header class="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
+        <div class="max-w-7xl mx-auto py-4 px-6 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <!-- Data Icon SVG -->
+                <svg class="w-8 h-8 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0h2m4 0v-6a2 2 0 00-2-2h-2a2 2 0 00-2 2v6m0 0h2m2 0v-6a2 2 0 00-2-2h-2a2 2 0 00-2 2v6m-4 0h2m-2-4h2m2 0h2m2 0h2m-4-2h2m-2 0h2m-2-2h2m-2 0h2"></path></svg>
+                <h1 class="text-xl font-bold text-gray-800">AI Data Insights Platform</h1>
+            </div>
+            <span id="fileStatus" class="text-sm text-gray-500">No file loaded</span>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto p-6">
+        <div id="dashboardContent" class="dashboard-grid">
+
+            <!-- LEFT SIDEBAR: Upload, Quality, Filters -->
+            <aside class="space-y-6">
                 <!-- File Upload Section -->
-                <section class="card upload-section">
-                    <h2>📁 Upload Files</h2>
-                    <p class="upload-limit"><span id="fileCount">0</span>/5 files uploaded</p>
-                    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls,.json" multiple style="display: none;">
-                    <button class="btn btn--primary" id="uploadBtn" onclick="document.getElementById('fileInput').click()">
-                        + Upload Data
+                <div class="card space-y-4">
+                    <h2 class="text-lg font-semibold text-gray-700 flex items-center space-x-2">
+                        <i data-lucide="upload" class="icon text-cyan-500"></i>
+                        <span>Data File Upload</span>
+                    </h2>
+                    <p id="uploadLimit" class="text-sm text-gray-500"><span id="fileCount">0</span>/5 files uploaded</p>
+                    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls,.json" multiple class="hidden">
+                    <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" 
+                            class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-medium py-2 rounded-lg transition duration-150 ease-in-out shadow-md">
+                        <i data-lucide="plus" class="icon mr-1"></i> Upload Data
                     </button>
-                    <div id="fileList" class="file-list"></div>
-                </section>
-
-                <!-- Filters Section -->
-                <section class="card filters-section">
-                    <h2>🔍 Filters</h2>
-                    <div id="filtersContainer" class="filters-container">
-                        <p class="empty-state">Upload data to see filters</p>
+                    <div id="fileList" class="file-list pt-2 space-y-2 border-t mt-4 border-gray-100">
+                        <p class="text-xs text-gray-400 text-center italic">Upload data to begin.</p>
                     </div>
-                </section>
+                </div>
 
                 <!-- Data Quality Section -->
-                <section class="card quality-section">
-                    <h2>⚠️ Data Quality</h2>
-                    <div id="qualityContainer" class="quality-container">
-                        <p class="empty-state">Upload data to check quality</p>
+                <div class="card">
+                    <h2 class="text-lg font-semibold text-gray-700 flex items-center space-x-2 mb-4">
+                        <i data-lucide="shield-alert" class="icon text-yellow-600"></i>
+                        <span>Data Quality & Fixes</span>
+                    </h2>
+                    <div id="qualityContainer" class="max-h-64 overflow-y-auto space-y-3">
+                        <p class="text-sm text-gray-400 text-center italic">Quality check runs after upload.</p>
                     </div>
-                </section>
+                </div>
+
+                <!-- Filters Section (Simplified for space) -->
+                <div class="card">
+                    <h2 class="text-lg font-semibold text-gray-700 flex items-center space-x-2 mb-4">
+                        <i data-lucide="filter" class="icon text-blue-500"></i>
+                        <span>Quick Filters</span>
+                    </h2>
+                    <div id="filtersContainer" class="max-h-64 overflow-y-auto space-y-4">
+                        <p class="text-sm text-gray-400 text-center italic">Categorical filters appear here.</p>
+                    </div>
+                </div>
             </aside>
 
-            <!-- Main Content Area -->
-            <main class="main-content">
+            <!-- MAIN CONTENT: Summary, Chart, Table -->
+            <main class="space-y-6">
                 <!-- Empty State -->
-                <div id="emptyState" class="empty-state-main">
-                    <div class="empty-icon">📊</div>
-                    <h2>Welcome to Data Insights Dashboard</h2>
-                    <p>Upload your data files (CSV, Excel, or JSON) to begin analyzing</p>
-                    <button class="btn btn--primary btn--lg" onclick="document.getElementById('fileInput').click()">
-                        Upload Your First File
+                <div id="emptyState" class="card text-center py-20">
+                    <div class="text-6xl mb-4">🚀</div>
+                    <h2 class="text-2xl font-bold text-gray-700 mb-2">Welcome to Your Analysis Hub</h2>
+                    <p class="text-gray-500 mb-6">Upload a CSV, Excel, or JSON file to unlock insights and activate the AI assistant.</p>
+                    <button class="bg-cyan-600 hover:bg-cyan-700 text-white font-medium py-3 px-6 rounded-lg transition shadow-md text-lg" onclick="document.getElementById('fileInput').click()">
+                        Get Started: Upload File
                     </button>
                 </div>
 
                 <!-- Data View -->
-                <div id="dataView" class="data-view" style="display: none;">
+                <div id="dataView" class="space-y-6 hidden">
                     <!-- Summary Stats -->
-                    <section class="card stats-section">
-                        <h2>📈 Data Summary</h2>
-                        <div id="summaryStats" class="summary-stats"></div>
-                    </section>
-
-                    <!-- Visualization Controls -->
-                    <section class="card viz-controls">
-                        <div class="controls-header">
-                            <h2>📊 Visualization</h2>
-                            <div class="controls-row">
-                                <div class="control-group">
-                                    <label>Chart Type:</label>
-                                    <select id="chartType" class="form-control">
-                                        <option value="bar">Bar Chart</option>
-                                        <option value="line">Line Chart</option>
-                                        <option value="scatter">Scatter Plot</option>
-                                        <option value="pie">Pie Chart</option>
-                                        <option value="doughnut">Doughnut Chart</option>
-                                    </select>
-                                </div>
-                                <div class="control-group">
-                                    <label>X-Axis:</label>
-                                    <select id="xAxis" class="form-control"></select>
-                                </div>
-                                <div class="control-group">
-                                    <label>Y-Axis:</label>
-                                    <select id="yAxis" class="form-control"></select>
-                                </div>
-                                <button class="btn btn--secondary" id="updateChart">Update Chart</button>
-                            </div>
+                    <div class="card">
+                        <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center space-x-2">
+                            <i data-lucide="bar-chart-3" class="icon text-green-600"></i>
+                            <span>Data Summary & Metrics</span>
+                        </h2>
+                        <div id="summaryStats" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <!-- Stats will be dynamically inserted here -->
                         </div>
-                        <div class="chart-container">
+                    </div>
+
+                    <!-- Visualization -->
+                    <div class="card">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-lg font-semibold text-gray-700 flex items-center space-x-2">
+                                <i data-lucide="line-chart" class="icon text-indigo-600"></i>
+                                <span>Interactive Visualization</span>
+                            </h2>
+                        </div>
+                        
+                        <div class="flex flex-wrap gap-4 items-end mb-4 bg-gray-50 p-3 rounded-lg border">
+                            <div class="flex-grow min-w-[150px]">
+                                <label for="chartType" class="block text-xs font-medium text-gray-500">Chart Type</label>
+                                <select id="chartType" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-cyan-500 focus:ring-cyan-500 text-sm">
+                                    <option value="bar">Bar Chart</option>
+                                    <option value="line">Line Chart</option>
+                                    <option value="scatter">Scatter Plot</option>
+                                    <option value="pie">Pie Chart</option>
+                                </select>
+                            </div>
+                            <div class="flex-grow min-w-[150px]">
+                                <label for="xAxis" class="block text-xs font-medium text-gray-500">X-Axis (Category/Value)</label>
+                                <select id="xAxis" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-cyan-500 focus:ring-cyan-500 text-sm"></select>
+                            </div>
+                            <div class="flex-grow min-w-[150px]">
+                                <label for="yAxis" class="block text-xs font-medium text-gray-500">Y-Axis (Numeric)</label>
+                                <select id="yAxis" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-cyan-500 focus:ring-cyan-500 text-sm"></select>
+                            </div>
+                            <button id="updateChart" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-4 rounded-md h-[38px] transition duration-150">
+                                Update
+                            </button>
+                        </div>
+                        
+                        <div class="h-[400px] p-2">
                             <canvas id="mainChart"></canvas>
                         </div>
-                    </section>
+                    </div>
 
-                    <!-- Insights Section -->
-                    <section class="card insights-section">
-                        <h2>💡 Key Insights</h2>
-                        <div id="insightsContainer" class="insights-container"></div>
-                    </section>
-
+                    <!-- Insights & Recommendations (From AI Mock) -->
+                    <div class="card">
+                        <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center space-x-2">
+                            <i data-lucide="lightbulb" class="icon text-amber-500"></i>
+                            <span>Key Insights & Suggestions</span>
+                        </h2>
+                        <div id="insightsContainer" class="space-y-3">
+                            <!-- Insights will be dynamically inserted here -->
+                        </div>
+                    </div>
+                    
                     <!-- Data Table -->
-                    <section class="card table-section">
-                        <div class="table-header">
-                            <h2>📋 Data Table</h2>
-                            <div class="table-controls">
-                                <input type="text" id="searchInput" class="form-control" placeholder="Search...">
-                                <span id="tableInfo" class="table-info"></span>
+                    <div class="card">
+                        <div class="flex justify-between items-center mb-4 flex-wrap gap-3">
+                            <h2 class="text-lg font-semibold text-gray-700">Data Table View</h2>
+                            <div class="flex items-center space-x-3">
+                                <input type="text" id="searchInput" placeholder="Search data..." class="p-2 border border-gray-300 rounded-md text-sm w-40 focus:border-cyan-500 focus:ring-cyan-500">
+                                <span id="tableInfo" class="text-sm text-gray-500"></span>
                             </div>
                         </div>
-                        <div class="table-wrapper">
-                            <table id="dataTable">
-                                <thead id="tableHead"></thead>
-                                <tbody id="tableBody"></tbody>
+
+                        <div class="data-table-wrapper">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead id="tableHead" class="bg-gray-50"></thead>
+                                <tbody id="tableBody" class="divide-y divide-gray-200"></tbody>
                             </table>
                         </div>
-                        <div class="pagination" id="pagination"></div>
-                    </section>
+                        <div id="pagination" class="flex justify-center items-center space-x-3 mt-4"></div>
+                    </div>
                 </div>
             </main>
 
-            <!-- Right Sidebar - AI Assistant -->
-            <aside class="sidebar-right">
-                <section class="card chat-section">
-                    <h2>🤖 AI Assistant</h2>
-                    <div class="chat-container" id="chatContainer">
-                        <div class="chat-message bot">
-                            <div class="message-content">
-                                Hello! I'm your data assistant. Upload some data and I can help you analyze it, find insights, check for missing values, and suggest visualizations.
-                            </div>
+            <!-- RIGHT SIDEBAR: AI Assistant -->
+            <aside>
+                <div class="card h-full flex flex-col">
+                    <h2 class="text-lg font-semibold text-gray-700 flex items-center space-x-2 mb-4">
+                        <i data-lucide="bot" class="icon text-purple-600"></i>
+                        <span>AI Data Assistant</span>
+                    </h2>
+                    
+                    <div id="chatContainer" class="flex-grow p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3 mb-4">
+                        <div class="chat-message bot p-3 rounded-xl max-w-[90%]">
+                            Hello! I'm your AI data assistant. Upload a file, and I can summarize data, check quality, and suggest improvements.
                         </div>
                     </div>
-                    <div class="example-questions">
-                        <p class="example-label">Try asking:</p>
-                        <button class="example-question" onclick="askQuestion('Summarize the data')">Summarize the data</button>
-                        <button class="example-question" onclick="askQuestion('What columns have missing values?')">Missing values?</button>
-                        <button class="example-question" onclick="askQuestion('Show me correlations')">Show correlations</button>
-                        <button class="example-question" onclick="askQuestion('Check data quality')">Data quality</button>
+                    
+                    <div class="space-y-2 mb-4">
+                        <p class="text-xs text-gray-500 font-medium">Quick Questions:</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button class="text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 p-2 rounded-md transition" onclick="askQuestion('Summarize the key metrics')">
+                                Summarize Data
+                            </button>
+                            <button class="text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 p-2 rounded-md transition" onclick="askQuestion('Where are the missing values?')">
+                                Missing Values?
+                            </button>
+                            <button class="text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 p-2 rounded-md transition" onclick="askQuestion('Suggest a better visualization')">
+                                Better Chart?
+                            </button>
+                            <button class="text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 p-2 rounded-md transition" onclick="askQuestion('What are the key improvements?')">
+                                Key Improvements
+                            </button>
+                        </div>
                     </div>
-                    <div class="chat-input-container">
-                        <input type="text" id="chatInput" class="form-control" placeholder="Ask about your data...">
-                        <button class="btn btn--primary" id="sendChat">Send</button>
+
+                    <div class="flex space-x-2">
+                        <input type="text" id="chatInput" placeholder="Ask about your data..." class="flex-grow p-2 border border-gray-300 rounded-lg focus:border-cyan-500 focus:ring-cyan-500 text-sm">
+                        <button id="sendChat" class="bg-cyan-600 hover:bg-cyan-700 text-white p-2 rounded-lg transition duration-150">
+                            <i data-lucide="send" class="icon"></i>
+                        </button>
                     </div>
-                </section>
+                </div>
             </aside>
+
         </div>
     </div>
 
+    <!-- Link to JavaScript Logic -->
     <script src="app.js"></script>
 </body>
 </html>

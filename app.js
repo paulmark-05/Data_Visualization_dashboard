@@ -6,37 +6,56 @@ let filteredData = null;
 let currentPage = 1;
 const rowsPerPage = 50;
 
-// Chart Colors
-const chartColors = ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F', '#DB4545', '#D2BA4C', '#964325', '#944454', '#13343B'];
+// Chart Colors - A modern, accessible palette
+const chartColors = [
+    '#06b6d4', '#f97316', '#10b981', '#ef4444', '#6366f1', 
+    '#f59e0b', '#3b82f6', '#ec4899', '#84cc16', '#a855f7'
+];
 
-// Initialize
+// Tailwind/Lucide icon mappings for status/severity
+const severityMap = {
+    high: { color: 'text-red-600', icon: 'zap' },
+    medium: { color: 'text-yellow-600', icon: 'alert-triangle' },
+    low: { color: 'text-green-600', icon: 'check-circle' },
+    info: { color: 'text-blue-600', icon: 'info' }
+};
+
+// --- Initialization and Setup ---
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize Lucide icons (available globally via CDN in index.html)
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons();
+    }
     setupEventListeners();
 });
 
 function setupEventListeners() {
-    // File upload
     document.getElementById('fileInput').addEventListener('change', handleFileUpload);
-    
-    // Chart controls
     document.getElementById('updateChart').addEventListener('click', updateVisualization);
-    
-    // Chat
     document.getElementById('sendChat').addEventListener('click', sendChatMessage);
     document.getElementById('chatInput').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendChatMessage();
     });
-    
-    // Search
     document.getElementById('searchInput').addEventListener('input', handleSearch);
 }
 
-// File Upload Handler
+// --- File Handling ---
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
 async function handleFileUpload(event) {
     const files = Array.from(event.target.files);
     
     if (uploadedFiles.length + files.length > 5) {
-        alert('Maximum 5 files allowed. Please remove some files first.');
+        // Use chat for notifications instead of alert()
+        addChatMessage('bot', 'Maximum 5 files allowed. Please remove some files first.');
         return;
     }
     
@@ -52,21 +71,21 @@ async function handleFileUpload(event) {
                 columns: data.length > 0 ? Object.keys(data[0]).length : 0
             };
             uploadedFiles.push(fileObj);
+            addChatMessage('bot', `File "${file.name}" uploaded successfully with ${fileObj.rows} rows.`);
         } catch (error) {
-            alert(`Error parsing ${file.name}: ${error.message}`);
+            addChatMessage('bot', `Error parsing ${file.name}: ${error.message}`);
         }
     }
     
     updateFileList();
     
     if (!activeDataset && uploadedFiles.length > 0) {
-        setActiveDataset(uploadedFiles[0].id);
+        setActiveDataset(uploadedFiles[uploadedFiles.length - 1].id);
     }
     
-    event.target.value = '';
+    event.target.value = ''; // Clear input for next upload
 }
 
-// Parse File
 function parseFile(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -74,18 +93,37 @@ function parseFile(file) {
         
         reader.onload = (e) => {
             try {
+                let jsonData;
                 if (fileName.endsWith('.json')) {
                     const data = JSON.parse(e.target.result);
-                    resolve(Array.isArray(data) ? data : [data]);
+                    jsonData = Array.isArray(data) ? data : [data];
                 } else if (fileName.endsWith('.csv') || fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
                     const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
+                    // XLSX is available globally from the CDN
+                    const workbook = XLSX.read(data, { type: 'array' }); 
                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-                    resolve(jsonData);
+                    // Use {defval: null} to ensure missing cells are treated as null
+                    jsonData = XLSX.utils.sheet_to_json(firstSheet, {defval: null}); 
                 } else {
                     reject(new Error('Unsupported file format'));
+                    return;
                 }
+
+                // Basic cleaning: ensure all objects have the same keys and handle nulls
+                if (jsonData.length > 0) {
+                    const allKeys = new Set();
+                    jsonData.forEach(row => Object.keys(row).forEach(key => allKeys.add(key)));
+                    const keysArray = Array.from(allKeys);
+                    jsonData = jsonData.map(row => {
+                        const newRow = {};
+                        keysArray.forEach(key => {
+                            newRow[key] = row.hasOwnProperty(key) ? row[key] : null;
+                        });
+                        return newRow;
+                    });
+                }
+                
+                resolve(jsonData);
             } catch (error) {
                 reject(error);
             }
@@ -101,209 +139,268 @@ function parseFile(file) {
     });
 }
 
-// Update File List
+// --- Dataset Management and UI Rendering ---
+
 function updateFileList() {
     const fileList = document.getElementById('fileList');
-    const fileCount = document.getElementById('fileCount');
-    
-    fileCount.textContent = uploadedFiles.length;
+    document.getElementById('fileCount').textContent = uploadedFiles.length;
     
     if (uploadedFiles.length === 0) {
-        fileList.innerHTML = '<p class="empty-state">No files uploaded</p>';
+        fileList.innerHTML = '<p class="text-xs text-gray-400 text-center italic">No files uploaded</p>';
+        document.getElementById('fileStatus').textContent = 'No file loaded';
+        document.getElementById('dataView').classList.add('hidden');
+        document.getElementById('emptyState').classList.remove('hidden');
         return;
     }
     
     fileList.innerHTML = uploadedFiles.map(file => `
-        <div class="file-item ${activeDataset && activeDataset.id === file.id ? 'active' : ''}" 
-             onclick="setActiveDataset(${file.id})">
-            <div class="file-name">${file.name}</div>
-            <div class="file-meta">${file.rows} rows × ${file.columns} cols | ${file.size}</div>
+        <div class="p-3 border rounded-lg cursor-pointer transition duration-150 ${activeDataset && activeDataset.id === file.id ? 'bg-cyan-100 border-cyan-400' : 'bg-white hover:bg-gray-50 border-gray-200'}" 
+            onclick="setActiveDataset(${file.id})">
+            <div class="flex items-center justify-between">
+                <span class="font-medium text-sm text-gray-800 truncate">${file.name}</span>
+                <button onclick="event.stopPropagation(); removeFile(${file.id});" class="text-gray-400 hover:text-red-500 transition">
+                     <i data-lucide="x" class="icon w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="text-xs text-gray-500">${file.rows} rows x ${file.columns} cols | ${file.size}</div>
         </div>
     `).join('');
+    
+    // Re-initialize icons for new elements
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons();
+    }
 }
 
-// Set Active Dataset
+function removeFile(fileId) {
+    uploadedFiles = uploadedFiles.filter(f => f.id !== fileId);
+    if (activeDataset && activeDataset.id === fileId) {
+        activeDataset = uploadedFiles.length > 0 ? uploadedFiles[0] : null;
+    }
+    updateFileList();
+    if (activeDataset) {
+        setActiveDataset(activeDataset.id);
+    } else {
+        // Return to empty state if all files are removed
+        document.getElementById('fileStatus').textContent = 'No file loaded';
+        document.getElementById('dataView').classList.add('hidden');
+        document.getElementById('emptyState').classList.remove('hidden');
+    }
+}
+
 function setActiveDataset(fileId) {
     activeDataset = uploadedFiles.find(f => f.id === fileId);
     if (!activeDataset) return;
     
     filteredData = [...activeDataset.data];
-    
+    currentPage = 1;
+
+    document.getElementById('fileStatus').textContent = `Loaded: ${activeDataset.name}`;
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('dataView').classList.remove('hidden');
+
     updateFileList();
-    showDataView();
     displaySummaryStats();
     displayDataQuality();
-    displayFilters();
-    displayInsights();
     populateAxisSelectors();
     updateVisualization();
     displayDataTable();
+    displayFilters(); // Must be called after populating selectors for initial columns
 }
 
-// Show Data View
-function showDataView() {
-    document.getElementById('emptyState').style.display = 'none';
-    document.getElementById('dataView').style.display = 'block';
-}
+// --- Data Quality and Fixes ---
 
-// Display Summary Stats
-function displaySummaryStats() {
-    const container = document.getElementById('summaryStats');
-    const data = activeDataset.data;
-    
-    const numericColumns = getNumericColumns(data);
-    const categoricalColumns = getCategoricalColumns(data);
-    
-    container.innerHTML = `
-        <div class="stat-card">
-            <div class="stat-label">Total Rows</div>
-            <div class="stat-value">${data.length}</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">Total Columns</div>
-            <div class="stat-value">${Object.keys(data[0] || {}).length}</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">Numeric Columns</div>
-            <div class="stat-value">${numericColumns.length}</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-label">Categorical Columns</div>
-            <div class="stat-value">${categoricalColumns.length}</div>
-        </div>
-    `;
-}
-
-// Display Data Quality
 function displayDataQuality() {
     const container = document.getElementById('qualityContainer');
     const data = activeDataset.data;
     const columns = Object.keys(data[0] || {});
     const issues = [];
     
-    // Check for missing values
+    // 1. Missing values
     columns.forEach(col => {
-        const missingCount = data.filter(row => row[col] === null || row[col] === undefined || row[col] === '').length;
-        const percentage = ((missingCount / data.length) * 100).toFixed(1);
+        // Count missing, including null and empty strings
+        const missingCount = data.filter(row => row[col] === null || row[col] === undefined || String(row[col] || '').trim() === '').length;
+        const percentage = ((missingCount / data.length) * 100);
         
         if (missingCount > 0) {
-            const severity = percentage > 20 ? 'high' : percentage > 10 ? 'medium' : 'low';
+            let severity = 'low';
+            if (percentage > 20) severity = 'high';
+            else if (percentage > 5) severity = 'medium';
+
+            const isNumeric = getNumericColumns(data).includes(col);
+            
             issues.push({
                 severity,
-                description: `Column "${col}" has ${percentage}% missing values (${missingCount} rows)`,
+                description: `Column <strong>${col}</strong> has ${percentage.toFixed(1)}% missing values (${missingCount} rows).`,
                 column: col,
-                type: 'missing'
+                type: 'missing',
+                isNumeric: isNumeric
             });
         }
     });
     
-    // Check for duplicates
-    const uniqueRows = new Set(data.map(row => JSON.stringify(row)));
-    const duplicates = data.length - uniqueRows.size;
+    // 2. Duplicates
+    const uniqueRows = new Set(data.map(row => JSON.stringify(row))).size;
+    const duplicates = data.length - uniqueRows;
     if (duplicates > 0) {
+        const severity = duplicates > data.length * 0.1 ? 'high' : 'medium';
         issues.push({
-            severity: duplicates > data.length * 0.1 ? 'high' : 'medium',
-            description: `Found ${duplicates} duplicate rows`,
+            severity,
+            description: `Found <strong>${duplicates}</strong> duplicate rows.`,
             type: 'duplicates'
+        });
+    }
+
+    // 3. Low Cardinality (Potential Index/Categorical)
+    const lowCardinalityCols = getCategoricalColumns(data).filter(col => {
+        const unique = [...new Set(data.map(row => row[col]))].length;
+        return unique > 1 && unique <= 5;
+    });
+    if (lowCardinalityCols.length > 0) {
+         issues.push({
+            severity: 'low',
+            description: `Potential categorical columns (low cardinality): ${lowCardinalityCols.slice(0, 3).join(', ')}.`,
+            type: 'info'
         });
     }
     
     if (issues.length === 0) {
-        container.innerHTML = '<p class="empty-state">✓ No data quality issues detected</p>';
+        container.innerHTML = `
+            <p class="text-sm text-center py-4 bg-green-50 text-green-700 rounded-lg">
+                <i data-lucide="check" class="icon mr-1"></i> Excellent! No immediate quality issues detected.
+            </p>`;
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        }
         return;
     }
     
-    container.innerHTML = issues.map(issue => `
-        <div class="quality-item ${issue.severity}">
-            <div class="quality-header">
-                <span class="quality-severity">${issue.severity.toUpperCase()}</span>
+    container.innerHTML = issues.map(issue => {
+        const map = severityMap[issue.severity];
+        const colorPrefix = map.color.split('-')[1];
+        const severityBadge = `<span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-${colorPrefix}-100 ${map.color}"><i data-lucide="${map.icon}" class="icon w-3 h-3 mr-1"></i>${issue.severity.toUpperCase()}</span>`;
+        
+        let fixes = '';
+        if (issue.type === 'missing' && issue.isNumeric) {
+            fixes = `
+                <div class="flex flex-wrap gap-2 mt-2">
+                    <button class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded-md" onclick="applyFix('${issue.column}', 'mean')">Fill Mean</button>
+                    <button class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded-md" onclick="applyFix('${issue.column}', 'median')">Fill Median</button>
+                    <button class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded-md" onclick="applyFix('${issue.column}', 'remove')">Remove Rows</button>
+                </div>`;
+        } else if (issue.type === 'missing' && !issue.isNumeric) {
+             fixes = `
+                <div class="flex flex-wrap gap-2 mt-2">
+                    <button class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded-md" onclick="applyFix('${issue.column}', 'mode')">Fill Mode</button>
+                    <button class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded-md" onclick="applyFix('${issue.column}', 'remove')">Remove Rows</button>
+                </div>`;
+        } else if (issue.type === 'duplicates') {
+            fixes = `
+                <div class="flex flex-wrap gap-2 mt-2">
+                    <button class="text-xs bg-red-100 hover:bg-red-200 px-2 py-1 rounded-md text-red-700" onclick="applyFix('all', 'remove_duplicates')">Remove Duplicates</button>
+                </div>`;
+        }
+
+        return `
+            <div class="p-3 border border-gray-200 rounded-lg space-y-1">
+                <div class="flex items-center space-x-2">${severityBadge}</div>
+                <p class="text-sm text-gray-700">${issue.description}</p>
+                ${fixes}
             </div>
-            <div class="quality-description">${issue.description}</div>
-            ${issue.type === 'missing' ? `
-                <div class="quality-fixes">
-                    <button class="quality-fix-btn" onclick="applyFix('${issue.column}', 'mean')">Fill with Mean</button>
-                    <button class="quality-fix-btn" onclick="applyFix('${issue.column}', 'median')">Fill with Median</button>
-                    <button class="quality-fix-btn" onclick="applyFix('${issue.column}', 'mode')">Fill with Mode</button>
-                    <button class="quality-fix-btn" onclick="applyFix('${issue.column}', 'remove')">Remove Rows</button>
-                </div>
-            ` : ''}
-        </div>
-    `).join('');
+        `;
+    }).join('');
+
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons();
+    }
 }
 
-// Apply Data Quality Fix
 function applyFix(column, method) {
     const data = activeDataset.data;
     
     if (method === 'remove') {
-        activeDataset.data = data.filter(row => row[column] !== null && row[column] !== undefined && row[column] !== '');
+        activeDataset.data = data.filter(row => row[column] !== null && row[column] !== undefined && String(row[column] || '').trim() !== '');
+    } else if (method === 'remove_duplicates') {
+        const uniqueRowsMap = new Map();
+        data.forEach(row => {
+            const key = JSON.stringify(row);
+            if (!uniqueRowsMap.has(key)) {
+                uniqueRowsMap.set(key, row);
+            }
+        });
+        activeDataset.data = Array.from(uniqueRowsMap.values());
     } else {
-        const values = data.map(row => row[column]).filter(v => v !== null && v !== undefined && v !== '');
-        const numericValues = values.filter(v => !isNaN(v)).map(Number);
+        // Impute: mean, median, mode
+        const values = data.map(row => row[column]).filter(v => v !== null && v !== undefined && String(v || '').trim() !== '');
         
         let fillValue;
-        if (method === 'mean') {
-            fillValue = mean(numericValues);
-        } else if (method === 'median') {
-            fillValue = median(numericValues);
+        if (method === 'mean' || method === 'median') {
+            const numericValues = values.filter(v => !isNaN(Number(v))).map(Number);
+            if (method === 'mean') fillValue = mean(numericValues);
+            if (method === 'median') fillValue = median(numericValues);
         } else if (method === 'mode') {
             fillValue = mode(values);
         }
         
         activeDataset.data = data.map(row => {
-            if (row[column] === null || row[column] === undefined || row[column] === '') {
+            if (row[column] === null || row[column] === undefined || String(row[column] || '').trim() === '') {
                 return { ...row, [column]: fillValue };
             }
             return row;
         });
     }
     
+    // Re-sync all dependent state and UI
+    activeDataset.rows = activeDataset.data.length;
     filteredData = [...activeDataset.data];
+    
+    addChatMessage('bot', `Applied <strong>${method.replace('_', ' ')}</strong> fix on column "${column === 'all' ? 'dataset' : column}". ${activeDataset.rows} rows remaining. Please review the updated Data Quality and Summary.`);
+    
     displayDataQuality();
     displaySummaryStats();
+    populateAxisSelectors();
     updateVisualization();
     displayDataTable();
-    
-    addChatMessage('bot', `Applied ${method} fix to column "${column}". Data has been updated.`);
+    updateFileList();
 }
 
-// Display Filters
+// --- Filtering ---
+
 function displayFilters() {
     const container = document.getElementById('filtersContainer');
     const data = activeDataset.data;
     const categoricalColumns = getCategoricalColumns(data);
     
     if (categoricalColumns.length === 0) {
-        container.innerHTML = '<p class="empty-state">No categorical columns found</p>';
+        container.innerHTML = '<p class="text-sm text-gray-400 text-center italic">No suitable categorical columns found for quick filters.</p>';
         return;
     }
     
+    // Only show up to 3 columns for quick filters
     const filterGroups = categoricalColumns.slice(0, 3).map(col => {
-        const uniqueValues = [...new Set(data.map(row => row[col]).filter(v => v !== null && v !== undefined))];
+        const uniqueValues = [...new Set(data.map(row => String(row[col] || 'N/A')))];
+        // Only show top 5 values
+        const topValues = uniqueValues.slice(0, 5);
+        
         return `
-            <div class="filter-group">
-                <div class="filter-group-title">${col}</div>
-                ${uniqueValues.slice(0, 5).map(value => `
-                    <div class="filter-option">
+            <div class="space-y-2 border-b pb-3 last:border-b-0 last:pb-0">
+                <div class="text-sm font-semibold text-gray-700">${col}</div>
+                ${topValues.map(value => `
+                    <div class="flex items-center space-x-2">
                         <input type="checkbox" id="filter-${col}-${value}" 
-                               data-column="${col}" data-value="${value}" 
-                               onchange="applyFilters()" checked>
-                        <label for="filter-${col}-${value}">${value}</label>
+                            data-column="${col}" data-value="${value}" 
+                            onchange="applyFilters()" checked
+                            class="rounded text-cyan-600 focus:ring-cyan-500 border-gray-300">
+                        <label for="filter-${col}-${value}" class="text-sm text-gray-600">${value}</label>
                     </div>
                 `).join('')}
             </div>
         `;
     }).join('');
     
-    container.innerHTML = filterGroups + `
-        <div class="filter-actions">
-            <button class="btn btn--secondary" onclick="clearFilters()">Clear All</button>
-            <button class="btn btn--primary" onclick="applyFilters()">Apply</button>
-        </div>
-    `;
+    container.innerHTML = filterGroups;
 }
 
-// Apply Filters
 function applyFilters() {
     const checkboxes = document.querySelectorAll('#filtersContainer input[type="checkbox"]');
     const filters = {};
@@ -312,223 +409,362 @@ function applyFilters() {
         const column = cb.dataset.column;
         const value = cb.dataset.value;
         
-        if (!filters[column]) filters[column] = [];
-        if (cb.checked) filters[column].push(value);
+        if (!filters[column]) filters[column] = { checked: [], unchecked: [] };
+        if (cb.checked) {
+            filters[column].checked.push(value);
+        } else {
+            filters[column].unchecked.push(value);
+        }
     });
     
     filteredData = activeDataset.data.filter(row => {
+        // A row passes if for every column filter, the row's value is in the 'checked' list.
         return Object.keys(filters).every(col => {
-            return filters[col].length === 0 || filters[col].includes(String(row[col]));
+            const rowValue = String(row[col] || 'N/A');
+            
+            // This complex check ensures that if a user unchecks ALL available filter options for a column,
+            // the filter for that column is applied to exclude all values, resulting in an empty dataset.
+            // If filters[col].checked.length is 0, but filters[col].unchecked.length > 0, we exclude all rows 
+            // whose value matches any of the original unique values, effectively filtering out everything.
+            if (filters[col].checked.length === 0 && filters[col].unchecked.length > 0) {
+                const originalValues = [...new Set(activeDataset.data.map(r => String(r[col] || 'N/A')))];
+                if (originalValues.includes(rowValue)) return false;
+            }
+
+            // Standard filter: if the column has any checked items, the row must match one of them.
+            if (filters[col].checked.length > 0) {
+                return filters[col].checked.includes(rowValue);
+            }
+            
+            return true;
         });
     });
-    
+
+    currentPage = 1;
     updateVisualization();
     displayDataTable();
+    addChatMessage('bot', `Filters applied! Showing ${filteredData.length} of ${activeDataset.data.length} rows.`);
 }
 
-// Clear Filters
-function clearFilters() {
-    const checkboxes = document.querySelectorAll('#filtersContainer input[type="checkbox"]');
-    checkboxes.forEach(cb => cb.checked = true);
-    filteredData = [...activeDataset.data];
-    updateVisualization();
-    displayDataTable();
-}
+// --- Summary Stats ---
 
-// Display Insights
-function displayInsights() {
-    const container = document.getElementById('insightsContainer');
+function displaySummaryStats() {
+    const container = document.getElementById('summaryStats');
     const data = activeDataset.data;
-    const insights = [];
-    
-    // Missing values insight
-    const columns = Object.keys(data[0] || {});
-    const missingCols = [];
-    columns.forEach(col => {
-        const missing = data.filter(row => row[col] === null || row[col] === undefined || row[col] === '').length;
-        if (missing > 0) {
-            missingCols.push(`${col} (${((missing / data.length) * 100).toFixed(1)}%)`);
-        }
-    });
-    
-    if (missingCols.length > 0) {
-        insights.push(`⚠️ Missing values detected in: ${missingCols.slice(0, 3).join(', ')}`);
-    } else {
-        insights.push('✓ No missing values detected in the dataset');
-    }
-    
-    // Numeric insights
     const numericColumns = getNumericColumns(data);
-    if (numericColumns.length >= 2) {
-        const corr = calculateCorrelation(data, numericColumns[0], numericColumns[1]);
-        if (Math.abs(corr) > 0.7) {
-            insights.push(`📊 Strong ${corr > 0 ? 'positive' : 'negative'} correlation (${corr.toFixed(2)}) between ${numericColumns[0]} and ${numericColumns[1]}`);
-        }
+    const categoricalColumns = getCategoricalColumns(data);
+    
+    // Example: Mean of first numeric column
+    let meanStat = 'N/A';
+    if (numericColumns.length > 0) {
+        const values = data.map(row => Number(row[numericColumns[0]]) || 0);
+        meanStat = mean(values).toFixed(2);
     }
     
-    // Size insight
-    if (data.length > 10000) {
-        insights.push(`📈 Large dataset with ${data.length.toLocaleString()} rows - consider filtering for better performance`);
+    // Example: Mode of first categorical column
+    let modeStat = 'N/A';
+    if (categoricalColumns.length > 0) {
+        const values = data.map(row => row[categoricalColumns[0]]);
+        modeStat = mode(values);
     }
+
+    // Stat Card Helper
+    const statCard = (label, value, color) => `
+        <div class="p-4 bg-${color}-50 rounded-lg border border-${color}-200">
+            <div class="text-xs font-medium text-gray-500 uppercase tracking-wider">${label}</div>
+            <div class="text-xl font-bold text-gray-800">${value}</div>
+        </div>
+    `;
     
-    // Data type distribution
-    insights.push(`📋 Dataset contains ${numericColumns.length} numeric and ${getCategoricalColumns(data).length} categorical columns`);
-    
-    container.innerHTML = insights.map(insight => `<div class="insight-item">${insight}</div>`).join('');
+    container.innerHTML = `
+        ${statCard('Total Rows', data.length.toLocaleString(), 'blue')}
+        ${statCard('Total Columns', Object.keys(data[0] || {}).length, 'purple')}
+        ${statCard(`Avg. (${numericColumns[0] || 'Numeric'})`, meanStat, 'green')}
+        ${statCard(`Mode (${categoricalColumns[0] || 'Category'})`, modeStat, 'yellow')}
+    `;
 }
 
-// Populate Axis Selectors
+
+// --- Visualization (Chart.js) ---
+
 function populateAxisSelectors() {
     const xAxis = document.getElementById('xAxis');
     const yAxis = document.getElementById('yAxis');
     const columns = Object.keys(activeDataset.data[0] || {});
     const numericColumns = getNumericColumns(activeDataset.data);
     
-    xAxis.innerHTML = columns.map(col => `<option value="${col}">${col}</option>`).join('');
-    yAxis.innerHTML = numericColumns.map(col => `<option value="${col}">${col}</option>`).join('');
+    const allOptions = columns.map(col => `<option value="${col}">${col}</option>`).join('');
+    const numericOptions = numericColumns.map(col => `<option value="${col}">${col}</option>`).join('');
+
+    xAxis.innerHTML = allOptions;
+    yAxis.innerHTML = numericOptions;
     
-    if (numericColumns.length > 1) {
-        yAxis.value = numericColumns[1];
-    }
+    // Pre-select reasonable defaults
+    if (columns.length > 0) xAxis.value = columns[0];
+    if (numericColumns.length > 0) yAxis.value = numericColumns[0];
 }
 
-// Update Visualization
 function updateVisualization() {
+    if (filteredData.length === 0) {
+         addChatMessage('bot', 'Cannot visualize: Filtered data set is empty.');
+         return;
+    }
+
     const chartType = document.getElementById('chartType').value;
     const xColumn = document.getElementById('xAxis').value;
     const yColumn = document.getElementById('yAxis').value;
     
-    const ctx = document.getElementById('mainChart').getContext('2d');
+    // Chart is available globally from the CDN
+    const ctx = document.getElementById('mainChart').getContext('2d'); 
     
-    if (currentChart) {
-        currentChart.destroy();
-    }
+    if (currentChart) currentChart.destroy();
     
-    const chartData = prepareChartData(filteredData, xColumn, yColumn, chartType);
+    const chartConfig = prepareChartData(filteredData, xColumn, yColumn, chartType);
     
     currentChart = new Chart(ctx, {
-        type: chartType === 'scatter' ? 'scatter' : chartType,
-        data: chartData,
+        type: chartConfig.type,
+        data: chartConfig.data,
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    display: chartType === 'pie' || chartType === 'doughnut',
-                    position: 'bottom'
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false
-                }
+                legend: { display: chartType === 'pie' || chartType === 'doughnut' },
+                tooltip: { mode: 'index', intersect: false }
             },
-            scales: chartType === 'pie' || chartType === 'doughnut' ? {} : {
-                x: {
-                    display: true,
-                    title: {
-                        display: true,
-                        text: xColumn
-                    }
-                },
-                y: {
-                    display: true,
-                    title: {
-                        display: true,
-                        text: yColumn
-                    }
-                }
-            }
+            scales: chartConfig.scales || {}
         }
     });
+    
+    displayInsights(); // Re-run insights after every chart update
 }
 
-// Prepare Chart Data
 function prepareChartData(data, xColumn, yColumn, chartType) {
+    // Check if X-axis is numeric for scatter/bar/line
+    const isXNumeric = getNumericColumns(data).includes(xColumn);
+
     if (chartType === 'pie' || chartType === 'doughnut') {
         const grouped = {};
         data.forEach(row => {
-            const key = row[xColumn];
+            const key = String(row[xColumn] || 'N/A');
+            // Pie charts typically aggregate counts or a single numeric measure
             grouped[key] = (grouped[key] || 0) + (Number(row[yColumn]) || 1);
         });
         
         return {
-            labels: Object.keys(grouped),
-            datasets: [{
-                data: Object.values(grouped),
-                backgroundColor: chartColors
-            }]
+            type: chartType,
+            data: {
+                labels: Object.keys(grouped),
+                datasets: [{
+                    data: Object.values(grouped),
+                    backgroundColor: chartColors
+                }]
+            },
+            scales: {}
         };
     }
     
-    if (chartType === 'scatter') {
+    if (chartType === 'scatter' && isXNumeric) {
         return {
-            datasets: [{
-                label: `${yColumn} vs ${xColumn}`,
-                data: data.map(row => ({
-                    x: Number(row[xColumn]) || 0,
-                    y: Number(row[yColumn]) || 0
-                })),
-                backgroundColor: chartColors[0]
-            }]
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: `${yColumn} vs ${xColumn}`,
+                    data: data.map(row => ({
+                        x: Number(row[xColumn]) || 0,
+                        y: Number(row[yColumn]) || 0
+                    })),
+                    backgroundColor: chartColors[0]
+                }]
+            },
+            scales: {
+                x: { type: 'linear', position: 'bottom', title: { display: true, text: xColumn } },
+                y: { type: 'linear', position: 'left', title: { display: true, text: yColumn } }
+            }
         };
     }
     
-    // Line, Bar, Area charts
+    // Aggregation for non-scatter plots if X is categorical
+    if (!isXNumeric) {
+         const grouped = {};
+        data.forEach(row => {
+            const key = String(row[xColumn] || 'N/A');
+            grouped[key] = (grouped[key] || 0) + (Number(row[yColumn]) || 0);
+        });
+        
+        const labels = Object.keys(grouped);
+        const values = Object.values(grouped);
+
+        return {
+            type: chartType,
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: yColumn,
+                    data: values,
+                    backgroundColor: chartType === 'bar' ? chartColors[0] : 'rgba(6, 182, 212, 0.2)',
+                    borderColor: chartColors[0],
+                    borderWidth: 1,
+                    tension: 0.4,
+                    fill: chartType === 'line' ? false : true // No fill for line by default
+                }]
+            },
+            scales: {
+                 x: { title: { display: true, text: xColumn } },
+                 y: { title: { display: true, text: yColumn } }
+            }
+        };
+    }
+
+    // Default fallback for ordered data display (e.g., Line/Bar with numeric X)
     const labels = data.slice(0, 50).map(row => row[xColumn]);
     const values = data.slice(0, 50).map(row => Number(row[yColumn]) || 0);
-    
-    return {
-        labels: labels,
-        datasets: [{
-            label: yColumn,
-            data: values,
-            backgroundColor: chartType === 'bar' ? chartColors[0] : 'rgba(31, 184, 205, 0.2)',
-            borderColor: chartColors[0],
-            borderWidth: 2,
-            fill: chartType === 'area'
-        }]
+
+     return {
+        type: chartType,
+        data: {
+            labels: labels,
+            datasets: [{
+                label: yColumn,
+                data: values,
+                backgroundColor: chartType === 'bar' ? chartColors[0] : 'rgba(6, 182, 212, 0.2)',
+                borderColor: chartColors[0],
+                borderWidth: 1,
+                tension: 0.4,
+                fill: chartType === 'line' ? false : true
+            }]
+        },
+         scales: {
+             x: { title: { display: true, text: xColumn } },
+             y: { title: { display: true, text: yColumn } }
+        }
     };
 }
 
-// Display Data Table
+function displayInsights() {
+    const container = document.getElementById('insightsContainer');
+    const data = activeDataset.data;
+    const currentChartType = document.getElementById('chartType').value;
+    const xCol = document.getElementById('xAxis').value;
+    const yCol = document.getElementById('yAxis').value;
+    const insights = [];
+
+    // 1. Filter status
+    if (filteredData.length < data.length) {
+        insights.push({ severity: 'info', text: `<strong>Active Filter:</strong> Currently viewing a subset of ${filteredData.length} rows (${((filteredData.length / data.length) * 100).toFixed(0)}%).`});
+    }
+
+    // 2. Correlation insight (from chart axes)
+    const numericCols = getNumericColumns(data);
+    if (numericCols.includes(xCol) && numericCols.includes(yCol)) {
+        const corr = calculateCorrelation(data, xCol, yCol);
+        if (Math.abs(corr) > 0.7) {
+            insights.push({ severity: 'high', text: `<strong>Strong Correlation:</strong> A ${corr > 0 ? 'positive' : 'negative'} correlation of <strong>${corr.toFixed(2)}</strong> exists between ${xCol} and ${yCol}.`});
+        } else if (Math.abs(corr) < 0.2) {
+            insights.push({ severity: 'low', text: `<strong>Weak Relationship:</strong> The correlation between ${xCol} and ${yCol} is very weak (${corr.toFixed(2)}). Consider alternative metrics.`});
+        }
+    }
+
+    // 3. Visualization suggestion based on current axes
+    const isXNumeric = numericCols.includes(xCol);
+    if (!isXNumeric && currentChartType !== 'bar' && currentChartType !== 'pie' && currentChartType !== 'doughnut') {
+         insights.push({ severity: 'medium', text: `<strong>Chart Type Alert:</strong> Since <strong>${xCol}</strong> is categorical, a <strong>Bar Chart</strong> or <strong>Pie Chart</strong> might be more suitable than a ${currentChartType}.`});
+    }
+
+
+    // 4. Missing value reminder
+    const missingCol = Object.keys(data[0] || {}).find(col => {
+        const missing = data.filter(row => row[col] === null || row[col] === undefined || String(row[col] || '').trim() === '').length;
+        return missing > 0;
+    });
+
+    if (missingCol) {
+        insights.push({ severity: 'medium', text: `<strong>Data Quality Reminder:</strong> Missing values are present. Check the <strong>Data Quality</strong> panel for imputation suggestions.`});
+    }
+
+    
+    // Format insights for display
+    container.innerHTML = insights.length > 0 ? insights.map(insight => {
+         const map = severityMap[insight.severity];
+        const colorPrefix = map.color.split('-')[1];
+        return `
+            <div class="flex p-3 rounded-lg bg-${colorPrefix}-50 border-l-4 border-${colorPrefix}-500 text-sm text-gray-700">
+                 <i data-lucide="${map.icon}" class="icon w-5 h-5 mr-3 flex-shrink-0 ${map.color}"></i>
+                <p>${insight.text}</p>
+            </div>
+        `;
+    }).join('') : `
+         <p class="text-sm text-gray-400 text-center italic py-4">No immediate insights or suggestions to display. Ask the AI assistant for more!</p>
+    `;
+     if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons();
+    }
+}
+
+// --- Data Table ---
+
 function displayDataTable() {
     const thead = document.getElementById('tableHead');
     const tbody = document.getElementById('tableBody');
     const tableInfo = document.getElementById('tableInfo');
     
+    if (filteredData.length === 0) {
+         tbody.innerHTML = `<tr><td colspan="100" class="text-center py-4 text-gray-500">No data to display. Adjust filters or search terms.</td></tr>`;
+         tableInfo.textContent = '0 rows';
+         updatePagination();
+         return;
+    }
+
     const columns = Object.keys(filteredData[0] || {});
     const startIdx = (currentPage - 1) * rowsPerPage;
     const endIdx = startIdx + rowsPerPage;
     const pageData = filteredData.slice(startIdx, endIdx);
     
-    // Headers
-    thead.innerHTML = `<tr>${columns.map(col => `<th onclick="sortTable('${col}')">${col}</th>`).join('')}</tr>`;
+    // Headers with Sortable Icons
+    thead.innerHTML = `<tr>${columns.map(col => `
+        <th onclick="sortTable('${col}')" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition duration-150">
+            ${col} <i data-lucide="arrow-down-up" class="icon w-3 h-3 ml-1"></i>
+        </th>
+    `).join('')}</tr>`;
     
     // Body
     tbody.innerHTML = pageData.map(row => `
-        <tr>${columns.map(col => `<td>${row[col] !== null && row[col] !== undefined ? row[col] : ''}</td>`).join('')}</tr>
+        <tr>${columns.map(col => {
+            const value = row[col] !== null && row[col] !== undefined ? row[col] : '';
+            return `<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">${value}</td>`;
+        }).join('')}</tr>
     `).join('');
     
-    // Info
-    tableInfo.textContent = `Showing ${startIdx + 1}-${Math.min(endIdx, filteredData.length)} of ${filteredData.length} rows`;
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons();
+    }
     
-    // Pagination
+    // Info
+    tableInfo.textContent = `Showing ${startIdx + 1}-${Math.min(endIdx, filteredData.length)} of ${filteredData.length.toLocaleString()} rows`;
+    
     updatePagination();
 }
 
-// Update Pagination
 function updatePagination() {
     const pagination = document.getElementById('pagination');
     const totalPages = Math.ceil(filteredData.length / rowsPerPage);
     
+    const prevDisabled = currentPage === 1;
+    const nextDisabled = currentPage === totalPages || totalPages === 0;
+
     pagination.innerHTML = `
-        <button class="btn btn--secondary" onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
-        <span style="padding: 0 12px; color: var(--color-text-secondary);">Page ${currentPage} of ${totalPages}</span>
-        <button class="btn btn--secondary" onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
+        <button class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1 px-3 rounded-md transition disabled:opacity-50" onclick="changePage(${currentPage - 1})" ${prevDisabled ? 'disabled' : ''}>
+            <i data-lucide="chevron-left" class="icon w-4 h-4"></i>
+        </button>
+        <span class="text-sm text-gray-600">Page ${totalPages > 0 ? currentPage : 0} of ${totalPages}</span>
+        <button class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1 px-3 rounded-md transition disabled:opacity-50" onclick="changePage(${currentPage + 1})" ${nextDisabled ? 'disabled' : ''}>
+            <i data-lucide="chevron-right" class="icon w-4 h-4"></i>
+        </button>
     `;
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons();
+    }
 }
 
-// Change Page
 function changePage(page) {
     const totalPages = Math.ceil(filteredData.length / rowsPerPage);
     if (page < 1 || page > totalPages) return;
@@ -536,22 +772,25 @@ function changePage(page) {
     displayDataTable();
 }
 
-// Sort Table
 function sortTable(column) {
-    const isNumeric = !isNaN(filteredData[0][column]);
+    const isNumeric = getNumericColumns(activeDataset.data).includes(column);
     
     filteredData.sort((a, b) => {
+        const valA = a[column];
+        const valB = b[column];
+
         if (isNumeric) {
-            return (Number(a[column]) || 0) - (Number(b[column]) || 0);
+            // Sort numerically
+            return (Number(valA) || 0) - (Number(valB) || 0);
         }
-        return String(a[column]).localeCompare(String(b[column]));
+        // Sort alphabetically
+        return String(valA || '').localeCompare(String(valB || ''));
     });
     
     currentPage = 1;
     displayDataTable();
 }
 
-// Handle Search
 function handleSearch(e) {
     const searchTerm = e.target.value.toLowerCase();
     
@@ -560,7 +799,7 @@ function handleSearch(e) {
     } else {
         filteredData = activeDataset.data.filter(row => {
             return Object.values(row).some(val => 
-                String(val).toLowerCase().includes(searchTerm)
+                String(val || '').toLowerCase().includes(searchTerm)
             );
         });
     }
@@ -569,7 +808,9 @@ function handleSearch(e) {
     displayDataTable();
 }
 
-// AI Chat Functions
+
+// --- AI Chat Functions (Mock LLM) ---
+
 function askQuestion(question) {
     document.getElementById('chatInput').value = question;
     sendChatMessage();
@@ -583,18 +824,23 @@ function sendChatMessage() {
     
     addChatMessage('user', question);
     input.value = '';
-    
+
+    // Simulate API call delay
     setTimeout(() => {
         const response = generateAIResponse(question);
         addChatMessage('bot', response);
-    }, 500);
+    }, 800);
 }
 
 function addChatMessage(type, content) {
     const container = document.getElementById('chatContainer');
     const message = document.createElement('div');
-    message.className = `chat-message ${type}`;
-    message.innerHTML = `<div class="message-content">${content}</div>`;
+    message.className = `chat-message ${type} p-3 rounded-xl max-w-[90%] ${type === 'user' ? 'self-end ml-auto' : 'self-start mr-auto'}`;
+    message.innerHTML = `
+        <div class="message-content text-sm leading-relaxed">
+            ${content}
+        </div>
+    `;
     container.appendChild(message);
     container.scrollTop = container.scrollHeight;
 }
@@ -603,115 +849,99 @@ function generateAIResponse(question) {
     const lowerQ = question.toLowerCase();
     
     if (!activeDataset) {
-        return 'Please upload a dataset first so I can help you analyze it.';
+        return 'I need an active dataset to provide assistance. Please upload a file first!';
     }
     
     const data = activeDataset.data;
     const columns = Object.keys(data[0] || {});
     
     // Summarize data
-    if (lowerQ.includes('summar')) {
+    if (lowerQ.includes('summar') || lowerQ.includes('metric')) {
         const numericCols = getNumericColumns(data);
-        return `📊 <strong>Dataset Summary:</strong><br><br>
-                • Total Rows: ${data.length}<br>
-                • Total Columns: ${columns.length}<br>
-                • Columns: ${columns.join(', ')}<br>
-                • Numeric Columns: ${numericCols.length}<br>
-                • File: ${activeDataset.name}`;
+        return `
+            <strong>📊 Data Summary for ${activeDataset.name}:</strong><br>
+            • Total Rows: <strong>${data.length.toLocaleString()}</strong><br>
+            • Columns: <strong>${columns.length}</strong> (${columns.slice(0, 3).join(', ')}${columns.length > 3 ? '...' : ''})<br>
+            • Numeric Columns: ${numericCols.length}<br>
+            <br>
+            The average of <strong>${numericCols[0] || 'the main numeric column'}</strong> is <strong>${numericCols.length > 0 ? mean(data.map(row => Number(row[numericCols[0]]) || 0)).toFixed(2) : 'N/A'}</strong>.
+        `;
     }
     
     // Missing values
-    if (lowerQ.includes('missing')) {
+    if (lowerQ.includes('missing') || lowerQ.includes('null')) {
         const missing = [];
         columns.forEach(col => {
-            const count = data.filter(row => row[col] === null || row[col] === undefined || row[col] === '').length;
+            const count = data.filter(row => row[col] === null || row[col] === undefined || String(row[col] || '').trim() === '').length;
             if (count > 0) {
-                missing.push(`${col}: ${((count / data.length) * 100).toFixed(1)}% (${count} rows)`);
+                missing.push(`<strong>${col}</strong>: ${((count / data.length) * 100).toFixed(1)}% (${count} rows)`);
             }
         });
         
         if (missing.length === 0) {
-            return '✓ Great news! No missing values detected in the dataset.';
+            return 'Great news! No missing values detected in the entire dataset.';
         }
         
-        return `⚠️ <strong>Missing Values Found:</strong><br><br>${missing.map(m => `• ${m}`).join('<br>')}`;
+        return `
+            ⚠️ <strong>Missing Values Found:</strong><br><br>
+            ${missing.slice(0, 5).map(m => `• ${m}`).join('<br>')}
+            <br>
+            Check the <strong>Data Quality</strong> panel to fill these using Mean, Median, or Mode.
+        `;
     }
     
-    // Correlation
-    if (lowerQ.includes('correlat')) {
-        const numericCols = getNumericColumns(data);
-        if (numericCols.length < 2) {
-            return 'Not enough numeric columns to calculate correlations.';
-        }
-        
-        const correlations = [];
-        for (let i = 0; i < Math.min(3, numericCols.length - 1); i++) {
-            for (let j = i + 1; j < Math.min(4, numericCols.length); j++) {
-                const corr = calculateCorrelation(data, numericCols[i], numericCols[j]);
-                correlations.push(`${numericCols[i]} ↔ ${numericCols[j]}: ${corr.toFixed(3)}`);
-            }
-        }
-        
-        return `📈 <strong>Correlation Analysis:</strong><br><br>${correlations.map(c => `• ${c}`).join('<br>')}`;
-    }
-    
-    // Trends
-    if (lowerQ.includes('trend')) {
-        const numericCols = getNumericColumns(data);
-        if (numericCols.length === 0) {
-            return 'No numeric columns available for trend analysis.';
-        }
-        
-        const col = numericCols[0];
-        const values = data.slice(0, 100).map(row => Number(row[col]) || 0);
-        const trend = values[values.length - 1] > values[0] ? 'increasing' : 'decreasing';
-        
-        return `📊 Column "${col}" shows an ${trend} trend. Consider using a line chart to visualize this pattern.`;
-    }
-    
-    // Data quality
-    if (lowerQ.includes('quality')) {
-        const missing = columns.filter(col => 
-            data.some(row => row[col] === null || row[col] === undefined || row[col] === '')
-        ).length;
-        
+    // Key Improvements
+    if (lowerQ.includes('improvement') || lowerQ.includes('recommend')) {
+        const missingCount = data.filter(row => Object.values(row).some(v => v === null || v === undefined || String(v || '').trim() === '')).length;
         const uniqueRows = new Set(data.map(row => JSON.stringify(row))).size;
         const duplicates = data.length - uniqueRows;
         
-        return `🔍 <strong>Data Quality Report:</strong><br><br>
-                • Columns with missing values: ${missing}<br>
-                • Duplicate rows: ${duplicates}<br>
-                • Data completeness: ${(((data.length - duplicates) / data.length) * 100).toFixed(1)}%<br>
-                ${missing === 0 && duplicates === 0 ? '<br>✓ Dataset looks clean!' : '<br>⚠️ Check the Data Quality panel for fixes.'}`;
+        const recs = [];
+        if (missingCount > 0) recs.push('Address <strong>missing values</strong> in key columns (see Quality panel for fixes).');
+        if (duplicates > 0) recs.push(`Remove <strong>${duplicates} duplicate rows</strong> for cleaner analysis.`);
+        recs.push('Ensure date columns are properly formatted for time-series analysis (if applicable).');
+        recs.push('Segment the data using the Quick Filters to find hidden patterns.');
+        
+        return `
+            💡 <strong>Key Recommendations for Improvement:</strong><br><br>
+            ${recs.map(r => `• ${r}`).join('<br>')}
+            <br>
+            Addressing these steps will significantly improve the accuracy of your models and visualizations.
+        `;
     }
     
     // Visualization suggestions
-    if (lowerQ.includes('visualiz') || lowerQ.includes('chart') || lowerQ.includes('graph')) {
+    if (lowerQ.includes('visualiz') || lowerQ.includes('chart')) {
         const numericCols = getNumericColumns(data);
         const categoricalCols = getCategoricalColumns(data);
         
-        return `💡 <strong>Visualization Suggestions:</strong><br><br>
-                • Bar Chart: Compare ${categoricalCols[0] || 'categories'} across ${numericCols[0] || 'values'}<br>
-                • Line Chart: Show trends over ${columns[0]}<br>
-                • Scatter Plot: Explore relationships between numeric columns<br>
-                • Pie Chart: Display distribution of ${categoricalCols[0] || 'categories'}<br><br>
-                Use the Visualization controls above to create these charts!`;
+        if (numericCols.length >= 2) {
+            return `
+                📊 <strong>Visualization Suggestions:</strong><br><br>
+                • **Scatter Plot:** For relationship between <strong>${numericCols[0]}</strong> and <strong>${numericCols[1]}</strong>.<br>
+                • **Bar Chart:** Compare a measure (e.g., Sum of <strong>${numericCols[0]}</strong>) across a category (e.g., <strong>${categoricalCols[0] || 'ID'}</strong>).<br>
+                • **Line Chart:** Show trends for <strong>${numericCols[0]}</strong> (if time data is present).<br>
+                <br>
+                Use the visualization controls above to explore these options!
+            `;
+        }
     }
     
     return `I can help you analyze this dataset. Try asking about:<br><br>
-            • "Summarize the data"<br>
-            • "What columns have missing values?"<br>
-            • "Show me correlations"<br>
-            • "Check data quality"<br>
-            • "Suggest visualizations"`;
+            • "Summarize key metrics"<br>
+            • "Where are the missing values?"<br>
+            • "Suggest a better visualization"<br>
+            • "What are the key improvements?"`;
 }
 
-// Utility Functions
+// --- Utility Functions (Statistical Helpers) ---
+
 function getNumericColumns(data) {
     if (data.length === 0) return [];
     return Object.keys(data[0]).filter(col => {
+        // Check up to 100 rows for type consistency
         return data.slice(0, 100).every(row => 
-            row[col] === null || row[col] === undefined || row[col] === '' || !isNaN(row[col])
+            row[col] === null || row[col] === undefined || String(row[col] || '').trim() === '' || !isNaN(Number(row[col]))
         );
     });
 }
@@ -720,6 +950,7 @@ function getCategoricalColumns(data) {
     if (data.length === 0) return [];
     return Object.keys(data[0]).filter(col => {
         const uniqueValues = new Set(data.map(row => row[col]));
+        // A column is likely categorical if it has fewer than 50 unique values AND fewer than 50% of the data rows
         return uniqueValues.size < data.length * 0.5 && uniqueValues.size < 50;
     });
 }
@@ -739,7 +970,8 @@ function median(values) {
 function mode(values) {
     const frequency = {};
     values.forEach(v => frequency[v] = (frequency[v] || 0) + 1);
-    return Object.keys(frequency).reduce((a, b) => frequency[a] > frequency[b] ? a : b);
+    // Finds the key with the highest frequency count
+    return Object.keys(frequency).reduce((a, b) => (frequency[a] || 0) > (frequency[b] || 0) ? a : b) || 'N/A';
 }
 
 function calculateCorrelation(data, col1, col2) {
@@ -752,14 +984,9 @@ function calculateCorrelation(data, col1, col2) {
     const sum2Sq = pairs.reduce((a, p) => a + p[1] * p[1], 0);
     const pSum = pairs.reduce((a, p) => a + p[0] * p[1], 0);
     
+    // Pearson correlation formula
     const num = pSum - (sum1 * sum2 / n);
     const den = Math.sqrt((sum1Sq - sum1 * sum1 / n) * (sum2Sq - sum2 * sum2 / n));
     
     return den === 0 ? 0 : num / den;
-}
-
-function formatFileSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / 1048576).toFixed(1) + ' MB';
 }
