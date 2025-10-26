@@ -7,8 +7,12 @@ let appState = {
     chatHistory: [],
     columnTypes: {},
     fileName: '',
-    charts: []
+    charts: [],
+    pendingFilters: {} // Track pending filter changes
 };
+
+// Track if filters have changed but not applied
+let filtersChanged = false;
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', function() {
@@ -449,14 +453,7 @@ function generateFilters() {
         return;
     }
 
-    let html = '<div style="margin-bottom: 20px;">';
-    html += '<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">';
-    html += '<button class="btn btn-danger" onclick="clearAllFilters()">Clear All Filters</button>';
-    html += '<div id="filterBadge" style="display: none; background: var(--color-primary); color: white; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;"></div>';
-    html += '</div>';
-    html += '<div class="active-filters" id="activeFilters"></div>';
-    html += '</div>';
-    html += '<div class="filters-grid">';
+    let html = '<div class="filters-grid">';
 
     categoricalColumns.forEach(col => {
         const uniqueValues = [...new Set(data.map(row => row[col]).filter(v => v))].sort();
@@ -479,30 +476,16 @@ function generateFilters() {
     html += '</div>';
     container.innerHTML = html;
 
+    // Show filters header section
+    const headerSection = document.getElementById('filtersHeaderSection');
+    if (headerSection) {
+        headerSection.style.display = 'block';
+    }
+
     // Attach event listeners to checkboxes
     document.querySelectorAll('.filter-checkbox').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            const column = this.dataset.column;
-            const value = this.dataset.value;
-            
-            if (!appState.activeFilters[column]) {
-                appState.activeFilters[column] = [];
-            }
-            
-            if (this.checked) {
-                if (!appState.activeFilters[column].includes(value)) {
-                    appState.activeFilters[column].push(value);
-                }
-            } else {
-                appState.activeFilters[column] = appState.activeFilters[column].filter(v => v !== value);
-            }
-            
-            // Remove empty filter arrays
-            if (appState.activeFilters[column].length === 0) {
-                delete appState.activeFilters[column];
-            }
-            
-            applyFilters();
+            onFilterChange();
         });
     });
 }
@@ -529,14 +512,19 @@ function applyFilters() {
     updateActiveFilters();
     updateFilterBadge();
     displayDataPreview(filtered);
+    
+    console.log('Rendering visualizations with filtered data...');
     renderAllVisualizations();
     generateInsights();
     
     // Update data overview counts
-    if (filtered.length !== appState.originalData.length) {
-        document.getElementById('rowCount').textContent = `${filtered.length} (filtered from ${appState.originalData.length})`;
-    } else {
-        document.getElementById('rowCount').textContent = appState.originalData.length;
+    const rowCountElement = document.getElementById('rowCount');
+    if (rowCountElement) {
+        if (filtered.length !== appState.originalData.length) {
+            rowCountElement.textContent = `${filtered.length} (filtered from ${appState.originalData.length})`;
+        } else {
+            rowCountElement.textContent = appState.originalData.length;
+        }
     }
 }
 
@@ -589,7 +577,69 @@ function removeFilterValue(column, value) {
         checkbox.checked = false;
     }
     
+    // Mark filters as changed and update button
+    onFilterChange();
+}
+
+// Handle filter change event
+function onFilterChange() {
+    filtersChanged = true;
+    const applyBtn = document.getElementById('applyFiltersBtn');
+    applyBtn.disabled = false;
+    applyBtn.classList.add('active');
+    applyBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+        </svg>
+        Apply Filters (Changed)
+    `;
+}
+
+// Apply filters when button is clicked
+function applyFiltersClick() {
+    if (!filtersChanged) return;
+    
+    console.log('Apply Filters clicked');
+    
+    // Build active filters from checkboxes
+    appState.activeFilters = {};
+    document.querySelectorAll('.filter-checkbox:checked').forEach(checkbox => {
+        const column = checkbox.dataset.column;
+        const value = checkbox.dataset.value;
+        
+        if (!appState.activeFilters[column]) {
+            appState.activeFilters[column] = [];
+        }
+        
+        if (!appState.activeFilters[column].includes(value)) {
+            appState.activeFilters[column].push(value);
+        }
+    });
+    
+    console.log('Active filters:', appState.activeFilters);
+    
+    const originalCount = appState.originalData.length;
+    
+    // Apply the filters
     applyFilters();
+    
+    const filteredCount = appState.filteredData.length;
+    console.log(`Filtered ${originalCount} rows down to ${filteredCount} rows`);
+    
+    // Reset button state
+    filtersChanged = false;
+    const applyBtn = document.getElementById('applyFiltersBtn');
+    applyBtn.disabled = true;
+    applyBtn.classList.remove('active');
+    applyBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+        </svg>
+        Apply Filters
+    `;
+    
+    // Show success feedback
+    showToast('Filters applied successfully!', 'success');
 }
 
 function clearAllFilters() {
@@ -599,6 +649,20 @@ function clearAllFilters() {
     
     // Reset all filter checkboxes
     document.querySelectorAll('.filter-checkbox').forEach(cb => cb.checked = false);
+    
+    // Reset filter changed flag and button
+    filtersChanged = false;
+    const applyBtn = document.getElementById('applyFiltersBtn');
+    if (applyBtn) {
+        applyBtn.disabled = true;
+        applyBtn.classList.remove('active');
+        applyBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            </svg>
+            Apply Filters
+        `;
+    }
     
     // Re-render everything with original data
     updateActiveFilters();
@@ -744,7 +808,7 @@ function createBarChart() {
         data: {
             labels: Object.keys(frequency),
             datasets: [{
-                label: column,
+                label: 'Count',
                 data: Object.values(frequency),
                 backgroundColor: ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F', '#DB4545', '#D2BA4C', '#964325', '#944454', '#13343B']
             }]
@@ -753,7 +817,49 @@ function createBarChart() {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false }
+                title: {
+                    display: true,
+                    text: `${column} Distribution (Bar Chart)`,
+                    font: { size: 18, weight: 'bold' },
+                    padding: { bottom: 20 }
+                },
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        font: { size: 12 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed.y / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.parsed.y} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: column,
+                        font: { size: 14, weight: '600' },
+                        padding: { top: 10 }
+                    },
+                    grid: { display: false }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Number of Items',
+                        font: { size: 14, weight: '600' },
+                        padding: { bottom: 10 }
+                    },
+                    grid: { color: '#e5e5e5' },
+                    beginAtZero: true
+                }
             }
         }
     });
@@ -781,14 +887,55 @@ function createLineChart() {
                 data: values,
                 borderColor: '#2563eb',
                 backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                tension: 0.4
+                tension: 0.4,
+                fill: true
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: true }
+                title: {
+                    display: true,
+                    text: `${column} Trend (Line Chart)`,
+                    font: { size: 18, weight: 'bold' },
+                    padding: { bottom: 20 }
+                },
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        font: { size: 12 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${column}: ${context.parsed.y.toFixed(2)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Row Index',
+                        font: { size: 14, weight: '600' },
+                        padding: { top: 10 }
+                    },
+                    grid: { color: '#e5e5e5' }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: column,
+                        font: { size: 14, weight: '600' },
+                        padding: { bottom: 10 }
+                    },
+                    grid: { color: '#e5e5e5' },
+                    beginAtZero: false
+                }
             }
         }
     });
@@ -816,13 +963,53 @@ function createPieChart() {
         data: {
             labels: Object.keys(frequency),
             datasets: [{
+                label: column,
                 data: Object.values(frequency),
                 backgroundColor: ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F', '#DB4545', '#D2BA4C', '#964325', '#944454', '#13343B']
             }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `${column} Breakdown (Pie Chart)`,
+                    font: { size: 18, weight: 'bold' },
+                    padding: { bottom: 20 }
+                },
+                legend: {
+                    display: true,
+                    position: 'right',
+                    labels: {
+                        font: { size: 12 },
+                        padding: 15,
+                        generateLabels: function(chart) {
+                            const data = chart.data;
+                            const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                            return data.labels.map((label, i) => {
+                                const value = data.datasets[0].data[i];
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return {
+                                    text: `${label} (${percentage}%)`,
+                                    fillStyle: data.datasets[0].backgroundColor[i],
+                                    hidden: false,
+                                    index: i
+                                };
+                            });
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
         }
     });
     appState.charts.push(chart);
@@ -848,16 +1035,58 @@ function createScatterChart() {
         type: 'scatter',
         data: {
             datasets: [{
-                label: `${xCol} vs ${yCol}`,
+                label: `Data Points`,
                 data: points,
-                backgroundColor: 'rgba(124, 58, 237, 0.5)'
+                backgroundColor: 'rgba(124, 58, 237, 0.6)',
+                borderColor: 'rgba(124, 58, 237, 1)',
+                pointRadius: 5,
+                pointHoverRadius: 7
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: true }
+                title: {
+                    display: true,
+                    text: `${xCol} vs ${yCol} (Scatter Plot)`,
+                    font: { size: 18, weight: 'bold' },
+                    padding: { bottom: 20 }
+                },
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        font: { size: 12 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${xCol}: ${context.parsed.x.toFixed(2)}, ${yCol}: ${context.parsed.y.toFixed(2)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: xCol,
+                        font: { size: 14, weight: '600' },
+                        padding: { top: 10 }
+                    },
+                    grid: { color: '#e5e5e5' }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: yCol,
+                        font: { size: 14, weight: '600' },
+                        padding: { bottom: 10 }
+                    },
+                    grid: { color: '#e5e5e5' }
+                }
             }
         }
     });
@@ -1312,6 +1541,29 @@ function exportInsights() {
     });
 
     downloadFile(JSON.stringify(insights, null, 2), 'insights.json', 'application/json');
+}
+
+// Show toast notification
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        ${message}
+    `;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 100);
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
 
 function downloadFile(content, fileName, mimeType) {

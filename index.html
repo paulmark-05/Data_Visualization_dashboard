@@ -201,6 +201,19 @@
         <!-- Filters Section -->
         <section class="content-section" id="section-filters">
             <h2>Data Filters</h2>
+            <div class="filters-header-section" style="display: none;" id="filtersHeaderSection">
+                <div class="filters-actions">
+                    <button id="applyFiltersBtn" class="btn apply-filters-btn" disabled onclick="applyFiltersClick()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                        </svg>
+                        Apply Filters
+                    </button>
+                    <button class="btn btn-danger" onclick="clearAllFilters()" style="margin-left: 12px;">Clear All Filters</button>
+                    <div id="filterBadge" style="display: none; background: var(--color-primary); color: white; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-left: 12px;"></div>
+                </div>
+                <div class="active-filters" id="activeFilters"></div>
+            </div>
             <div class="filters-container" id="filtersContainer">
                 <div class="no-data-message">Please upload a dataset first to apply filters.</div>
             </div>
