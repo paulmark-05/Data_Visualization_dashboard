@@ -17,7 +17,7 @@
 </head>
 <body class="antialiased">
 
-    <!-- Header -->
+    <!-- Header (Sticky top) -->
     <header class="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
         <div class="max-w-7xl mx-auto py-4 px-6 flex items-center justify-between">
             <div class="flex items-center space-x-3">
@@ -62,7 +62,7 @@
                     </div>
                 </div>
 
-                <!-- Filters Section (Simplified for space) -->
+                <!-- Filters Section -->
                 <div class="card">
                     <h2 class="text-lg font-semibold text-gray-700 flex items-center space-x-2 mb-4">
                         <i data-lucide="filter" class="icon text-blue-500"></i>
@@ -86,7 +86,7 @@
                     </button>
                 </div>
 
-                <!-- Data View -->
+                <!-- Data View (Hidden until file is loaded) -->
                 <div id="dataView" class="space-y-6 hidden">
                     <!-- Summary Stats -->
                     <div class="card">
@@ -134,9 +134,9 @@
                         <div class="h-[400px] p-2">
                             <canvas id="mainChart"></canvas>
                         </div>
-                    </div>
+                    </section>
 
-                    <!-- Insights & Recommendations (From AI Mock) -->
+                    <!-- Insights & Recommendations -->
                     <div class="card">
                         <h2 class="text-lg font-semibold text-gray-700 mb-4 flex items-center space-x-2">
                             <i data-lucide="lightbulb" class="icon text-amber-500"></i>

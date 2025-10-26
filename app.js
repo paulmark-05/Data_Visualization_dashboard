@@ -4,7 +4,11 @@ let activeDataset = null;
 let currentChart = null;
 let filteredData = null;
 let currentPage = 1;
-const rowsPerPage = 50;
+const rowsPerPage = 50; // Controls the "batch" size for table pagination
+
+// Gemini API Configuration
+const apiKey = ""; // API key is provided by the environment
+const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
 // Chart Colors - A modern, accessible palette
 const chartColors = [
@@ -809,27 +813,111 @@ function handleSearch(e) {
 }
 
 
-// --- AI Chat Functions (Mock LLM) ---
+// --- AI Chat Functions (Gemini API Integration) ---
 
 function askQuestion(question) {
     document.getElementById('chatInput').value = question;
     sendChatMessage();
 }
 
-function sendChatMessage() {
+// Function to handle retries for API call
+async function callGeminiAPI(payload, retries = 3) {
+    let lastError = null;
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`API call failed with status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (!text) {
+                 throw new Error("Gemini response structure invalid or text missing.");
+            }
+
+            return text;
+
+        } catch (error) {
+            lastError = error;
+            // Exponential backoff
+            const delay = Math.pow(2, i) * 1000;
+            if (i < retries - 1) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+    console.error("Failed to call Gemini API after all retries.", lastError);
+    return "Sorry, the AI service is currently unavailable. Please try again later.";
+}
+
+function getGeminiPrompt(question, data) {
+    const columnNames = Object.keys(data[0] || {});
+    // Send a sample of the data (first 50 rows) to ground the LLM
+    const dataSample = JSON.stringify(data.slice(0, 50), null, 2);
+
+    // Construct the overall data summary string
+    const dataSummary = `
+        Dataset Name: ${activeDataset.name}
+        Total Rows in File: ${activeDataset.data.length}
+        Total Columns: ${columnNames.length}
+        Column Names: ${columnNames.join(', ')}
+        
+        --- DATA SAMPLE (First 50 rows) ---
+        ${dataSample}
+        --- END DATA SAMPLE ---
+    `;
+
+    const systemPrompt = `You are an expert Data Analyst AI Assistant. Your task is to analyze the provided data sample and summary statistics.
+    Answer the user's question concisely, using Markdown formatting (like **bolding** and lists).
+    When asked to 'summarize', provide 3-5 key findings based on the column names, sample data, and total row count.
+    DO NOT use placeholders like (First 50 rows). Refer to the dataset generally.`;
+
+    return {
+        contents: [{ parts: [{ text: `${dataSummary}\n\nUser Question: ${question}` }] }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+    };
+}
+
+
+async function sendChatMessage() {
     const input = document.getElementById('chatInput');
     const question = input.value.trim();
     
     if (!question) return;
     
+    if (!activeDataset) {
+        addChatMessage('bot', 'I need an active dataset to provide assistance. Please upload a file first!');
+        input.value = '';
+        return;
+    }
+    
     addChatMessage('user', question);
     input.value = '';
 
-    // Simulate API call delay
-    setTimeout(() => {
-        const response = generateAIResponse(question);
-        addChatMessage('bot', response);
-    }, 800);
+    const tempMessageId = Date.now();
+    addChatMessage('bot', '<div id="loading-' + tempMessageId + '" class="text-gray-500">_ _ _ AI is typing...</div>');
+    
+    const data = activeDataset.data;
+    const payload = getGeminiPrompt(question, data);
+
+    const geminiResponse = await callGeminiAPI(payload);
+
+    // Update the temporary loading message with the final response
+    const loadingMessageElement = document.getElementById(`loading-${tempMessageId}`);
+    if (loadingMessageElement) {
+        // Use innerHTML to allow Markdown rendering (like **bold**)
+        loadingMessageElement.parentElement.innerHTML = geminiResponse; 
+    } else {
+        // Fallback in case element was removed
+        addChatMessage('bot', geminiResponse);
+    }
 }
 
 function addChatMessage(type, content) {
@@ -843,95 +931,6 @@ function addChatMessage(type, content) {
     `;
     container.appendChild(message);
     container.scrollTop = container.scrollHeight;
-}
-
-function generateAIResponse(question) {
-    const lowerQ = question.toLowerCase();
-    
-    if (!activeDataset) {
-        return 'I need an active dataset to provide assistance. Please upload a file first!';
-    }
-    
-    const data = activeDataset.data;
-    const columns = Object.keys(data[0] || {});
-    
-    // Summarize data
-    if (lowerQ.includes('summar') || lowerQ.includes('metric')) {
-        const numericCols = getNumericColumns(data);
-        return `
-            <strong>📊 Data Summary for ${activeDataset.name}:</strong><br>
-            • Total Rows: <strong>${data.length.toLocaleString()}</strong><br>
-            • Columns: <strong>${columns.length}</strong> (${columns.slice(0, 3).join(', ')}${columns.length > 3 ? '...' : ''})<br>
-            • Numeric Columns: ${numericCols.length}<br>
-            <br>
-            The average of <strong>${numericCols[0] || 'the main numeric column'}</strong> is <strong>${numericCols.length > 0 ? mean(data.map(row => Number(row[numericCols[0]]) || 0)).toFixed(2) : 'N/A'}</strong>.
-        `;
-    }
-    
-    // Missing values
-    if (lowerQ.includes('missing') || lowerQ.includes('null')) {
-        const missing = [];
-        columns.forEach(col => {
-            const count = data.filter(row => row[col] === null || row[col] === undefined || String(row[col] || '').trim() === '').length;
-            if (count > 0) {
-                missing.push(`<strong>${col}</strong>: ${((count / data.length) * 100).toFixed(1)}% (${count} rows)`);
-            }
-        });
-        
-        if (missing.length === 0) {
-            return 'Great news! No missing values detected in the entire dataset.';
-        }
-        
-        return `
-            ⚠️ <strong>Missing Values Found:</strong><br><br>
-            ${missing.slice(0, 5).map(m => `• ${m}`).join('<br>')}
-            <br>
-            Check the <strong>Data Quality</strong> panel to fill these using Mean, Median, or Mode.
-        `;
-    }
-    
-    // Key Improvements
-    if (lowerQ.includes('improvement') || lowerQ.includes('recommend')) {
-        const missingCount = data.filter(row => Object.values(row).some(v => v === null || v === undefined || String(v || '').trim() === '')).length;
-        const uniqueRows = new Set(data.map(row => JSON.stringify(row))).size;
-        const duplicates = data.length - uniqueRows;
-        
-        const recs = [];
-        if (missingCount > 0) recs.push('Address <strong>missing values</strong> in key columns (see Quality panel for fixes).');
-        if (duplicates > 0) recs.push(`Remove <strong>${duplicates} duplicate rows</strong> for cleaner analysis.`);
-        recs.push('Ensure date columns are properly formatted for time-series analysis (if applicable).');
-        recs.push('Segment the data using the Quick Filters to find hidden patterns.');
-        
-        return `
-            💡 <strong>Key Recommendations for Improvement:</strong><br><br>
-            ${recs.map(r => `• ${r}`).join('<br>')}
-            <br>
-            Addressing these steps will significantly improve the accuracy of your models and visualizations.
-        `;
-    }
-    
-    // Visualization suggestions
-    if (lowerQ.includes('visualiz') || lowerQ.includes('chart')) {
-        const numericCols = getNumericColumns(data);
-        const categoricalCols = getCategoricalColumns(data);
-        
-        if (numericCols.length >= 2) {
-            return `
-                📊 <strong>Visualization Suggestions:</strong><br><br>
-                • **Scatter Plot:** For relationship between <strong>${numericCols[0]}</strong> and <strong>${numericCols[1]}</strong>.<br>
-                • **Bar Chart:** Compare a measure (e.g., Sum of <strong>${numericCols[0]}</strong>) across a category (e.g., <strong>${categoricalCols[0] || 'ID'}</strong>).<br>
-                • **Line Chart:** Show trends for <strong>${numericCols[0]}</strong> (if time data is present).<br>
-                <br>
-                Use the visualization controls above to explore these options!
-            `;
-        }
-    }
-    
-    return `I can help you analyze this dataset. Try asking about:<br><br>
-            • "Summarize key metrics"<br>
-            • "Where are the missing values?"<br>
-            • "Suggest a better visualization"<br>
-            • "What are the key improvements?"`;
 }
 
 // --- Utility Functions (Statistical Helpers) ---
