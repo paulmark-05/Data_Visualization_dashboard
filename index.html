@@ -221,10 +221,57 @@
 
         <!-- Visualizations Section -->
         <section class="content-section" id="section-visualizations">
-            <h2>Data Visualizations</h2>
-            <div class="visualizations-container" id="visualizationsContainer">
-                <div class="no-data-message">Please upload a dataset first to view visualizations.</div>
+            <div class="section-header">
+                <h2>Data Visualizations</h2>
+                <p>Explore your data through interactive charts and graphs</p>
             </div>
+            
+            <!-- FILTERS PANEL - Integrated at top -->
+            <div class="filters-panel card" id="filtersPanel" style="display: none;">
+                <div class="filters-header" onclick="toggleFiltersPanel()">
+                    <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg> Filters</h3>
+                    <button class="collapse-btn" id="filtersPanelToggle">▼</button>
+                </div>
+                <div class="filters-content" id="filtersContent">
+                    <div class="filters-actions-row">
+                        <button id="applyFiltersBtn2" class="btn-apply" disabled onclick="applyFiltersClick()">Apply Filters</button>
+                        <button id="clearFiltersBtn2" class="btn-clear" onclick="clearAllFilters()">Clear All</button>
+                    </div>
+                    <div id="filtersContainer2" class="filters-grid-inline"></div>
+                </div>
+            </div>
+            
+            <!-- ACTIVE FILTERS DISPLAY -->
+            <div id="activeFiltersChips" class="active-filters-chips"></div>
+            
+            <!-- CHARTS GRID -->
+            <div class="charts-grid" id="chartsGrid" style="display: none;">
+                <!-- Chart 1 -->
+                <div class="chart-card card">
+                    <div class="chart-controls" id="chart1Controls"></div>
+                    <div class="chart-container" id="chart1" style="height: 300px;"></div>
+                </div>
+                
+                <!-- Chart 2 -->
+                <div class="chart-card card">
+                    <div class="chart-controls" id="chart2Controls"></div>
+                    <div class="chart-container" id="chart2" style="height: 300px;"></div>
+                </div>
+                
+                <!-- Chart 3 -->
+                <div class="chart-card card">
+                    <div class="chart-controls" id="chart3Controls"></div>
+                    <div class="chart-container" id="chart3" style="height: 300px;"></div>
+                </div>
+                
+                <!-- Chart 4 -->
+                <div class="chart-card card">
+                    <div class="chart-controls" id="chart4Controls"></div>
+                    <div class="chart-container" id="chart4" style="height: 300px;"></div>
+                </div>
+            </div>
+            
+            <div class="no-data-message" id="noVisualizationsMessage">Please upload a dataset first to view visualizations.</div>
         </section>
 
         <!-- AI Assistant Section -->

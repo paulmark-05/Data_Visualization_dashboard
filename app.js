@@ -8,6 +8,13 @@ let appState = {
     columnTypes: {},
     fileName: '',
     charts: [],
+    chartInstances: {}, // Store Chart.js instances
+    chartConfigs: { // Store chart configurations
+        chart1: { type: 'bar', column: '', xColumn: '', yColumn: '' },
+        chart2: { type: 'line', column: '', xColumn: '', yColumn: '' },
+        chart3: { type: 'pie', column: '', xColumn: '', yColumn: '' },
+        chart4: { type: 'scatter', column: '', xColumn: '', yColumn: '' }
+    },
     pendingFilters: {} // Track pending filter changes
 };
 
@@ -196,7 +203,7 @@ function finalizeDataProcessing(data, fileName, fileSize) {
     // Generate all sections
     generateDataQuality();
     generateFilters();
-    generateVisualizations();
+    initializeVisualizations();
     generateInsights();
 
     // Show success message in chat
@@ -584,15 +591,11 @@ function removeFilterValue(column, value) {
 // Handle filter change event
 function onFilterChange() {
     filtersChanged = true;
-    const applyBtn = document.getElementById('applyFiltersBtn');
-    applyBtn.disabled = false;
-    applyBtn.classList.add('active');
-    applyBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-        </svg>
-        Apply Filters (Changed)
-    `;
+    const applyBtn = document.getElementById('applyFiltersBtn2');
+    if (applyBtn) {
+        applyBtn.disabled = false;
+        applyBtn.textContent = 'Apply Filters (Changed)';
+    }
 }
 
 // Apply filters when button is clicked
@@ -621,63 +624,689 @@ function applyFiltersClick() {
     const originalCount = appState.originalData.length;
     
     // Apply the filters
-    applyFilters();
+    let filtered = [...appState.originalData];
+    
+    Object.keys(appState.activeFilters).forEach(column => {
+        const selectedValues = appState.activeFilters[column];
+        if (selectedValues && selectedValues.length > 0) {
+            filtered = filtered.filter(row => 
+                selectedValues.includes(String(row[column]))
+            );
+        }
+    });
+    
+    appState.filteredData = filtered;
     
     const filteredCount = appState.filteredData.length;
-    console.log(`Filtered ${originalCount} rows down to ${filteredCount} rows`);
+    console.log(`Filtered from ${originalCount} to ${filteredCount} rows`);
+    
+    // Update active filters display
+    displayActiveFiltersChips();
+    
+    // Re-render all charts with filtered data
+    renderAllCharts();
     
     // Reset button state
     filtersChanged = false;
-    const applyBtn = document.getElementById('applyFiltersBtn');
-    applyBtn.disabled = true;
-    applyBtn.classList.remove('active');
-    applyBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-        </svg>
-        Apply Filters
-    `;
+    const applyBtn = document.getElementById('applyFiltersBtn2');
+    if (applyBtn) {
+        applyBtn.disabled = true;
+        applyBtn.textContent = 'Apply Filters';
+    }
     
     // Show success feedback
-    showToast('Filters applied successfully!', 'success');
+    showToast(`Filters applied! Showing ${filteredCount} of ${originalCount} rows`, 'success');
+}
+
+// Display active filter chips
+function displayActiveFiltersChips() {
+    const container = document.getElementById('activeFiltersChips');
+    if (!container) return;
+    
+    let html = '';
+    
+    Object.keys(appState.activeFilters).forEach(col => {
+        const values = appState.activeFilters[col];
+        values.forEach(val => {
+            const safeCol = String(col).replace(/'/g, "\\'");
+            const safeVal = String(val).replace(/'/g, "\\'");
+            html += `<div class="filter-chip-inline">${col}: ${val} <button onclick="removeFilterChip('${safeCol}', '${safeVal}')">×</button></div>`;
+        });
+    });
+    
+    container.innerHTML = html;
+}
+
+// Remove filter chip
+function removeFilterChip(column, value) {
+    if (appState.activeFilters[column]) {
+        appState.activeFilters[column] = appState.activeFilters[column].filter(v => v !== value);
+        
+        if (appState.activeFilters[column].length === 0) {
+            delete appState.activeFilters[column];
+        }
+    }
+    
+    // Uncheck the corresponding checkbox
+    const checkbox = document.querySelector(`.filter-checkbox[data-column="${column}"][data-value="${value}"]`);
+    if (checkbox) {
+        checkbox.checked = false;
+    }
+    
+    // Reapply filters
+    let filtered = [...appState.originalData];
+    
+    Object.keys(appState.activeFilters).forEach(col => {
+        const selectedValues = appState.activeFilters[col];
+        if (selectedValues && selectedValues.length > 0) {
+            filtered = filtered.filter(row => 
+                selectedValues.includes(String(row[col]))
+            );
+        }
+    });
+    
+    appState.filteredData = filtered;
+    
+    // Update display
+    displayActiveFiltersChips();
+    renderAllCharts();
+    
+    showToast('Filter removed', 'success');
 }
 
 function clearAllFilters() {
     appState.activeFilters = {};
-    appState.filteredData = [...appState.originalData];
-    appState.uploadedData = [...appState.originalData];
+    appState.filteredData = [];
     
     // Reset all filter checkboxes
     document.querySelectorAll('.filter-checkbox').forEach(cb => cb.checked = false);
     
     // Reset filter changed flag and button
     filtersChanged = false;
-    const applyBtn = document.getElementById('applyFiltersBtn');
+    const applyBtn = document.getElementById('applyFiltersBtn2');
     if (applyBtn) {
         applyBtn.disabled = true;
-        applyBtn.classList.remove('active');
-        applyBtn.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-            </svg>
-            Apply Filters
-        `;
+        applyBtn.textContent = 'Apply Filters';
     }
     
-    // Re-render everything with original data
-    updateActiveFilters();
-    updateFilterBadge();
-    displayDataPreview(appState.originalData);
-    renderAllVisualizations();
-    generateInsights();
+    // Clear active filters display
+    const chipsContainer = document.getElementById('activeFiltersChips');
+    if (chipsContainer) {
+        chipsContainer.innerHTML = '';
+    }
     
-    // Reset data overview count
-    document.getElementById('rowCount').textContent = appState.originalData.length;
+    // Re-render charts with original data
+    renderAllCharts();
+    
+    showToast('All filters cleared', 'success');
 }
 
-// Visualizations
+// Toggle filters panel
+function toggleFiltersPanel() {
+    const panel = document.getElementById('filtersPanel');
+    if (panel) {
+        panel.classList.toggle('collapsed');
+    }
+}
+
+// Visualizations - Initialize with controls
+function initializeVisualizations() {
+    const data = appState.originalData;
+    
+    if (data.length === 0) {
+        document.getElementById('noVisualizationsMessage').style.display = 'block';
+        document.getElementById('chartsGrid').style.display = 'none';
+        document.getElementById('filtersPanel').style.display = 'none';
+        return;
+    }
+    
+    // Hide no data message, show charts
+    document.getElementById('noVisualizationsMessage').style.display = 'none';
+    document.getElementById('chartsGrid').style.display = 'grid';
+    document.getElementById('filtersPanel').style.display = 'block';
+    
+    // Generate filters in the integrated panel
+    generateIntegratedFilters();
+    
+    // Initialize charts with controls
+    const columns = Object.keys(data[0]);
+    const numericColumns = columns.filter(col => appState.columnTypes[col] === 'numeric');
+    const categoricalColumns = columns.filter(col => appState.columnTypes[col] === 'categorical' || appState.columnTypes[col] === 'text');
+    
+    // Set default columns for each chart
+    if (categoricalColumns.length > 0) {
+        appState.chartConfigs.chart1.column = categoricalColumns[0];
+        appState.chartConfigs.chart3.column = categoricalColumns[0];
+    }
+    if (numericColumns.length > 0) {
+        appState.chartConfigs.chart2.xColumn = columns[0];
+        appState.chartConfigs.chart2.yColumn = numericColumns[0];
+    }
+    if (numericColumns.length >= 2) {
+        appState.chartConfigs.chart4.xColumn = numericColumns[0];
+        appState.chartConfigs.chart4.yColumn = numericColumns[1];
+    } else if (numericColumns.length === 1) {
+        appState.chartConfigs.chart4.xColumn = columns[0];
+        appState.chartConfigs.chart4.yColumn = numericColumns[0];
+    }
+    
+    // Create controls for each chart
+    createChartControls('chart1', appState.chartConfigs.chart1);
+    createChartControls('chart2', appState.chartConfigs.chart2);
+    createChartControls('chart3', appState.chartConfigs.chart3);
+    createChartControls('chart4', appState.chartConfigs.chart4);
+    
+    // Render all charts
+    renderChart('chart1', appState.chartConfigs.chart1);
+    renderChart('chart2', appState.chartConfigs.chart2);
+    renderChart('chart3', appState.chartConfigs.chart3);
+    renderChart('chart4', appState.chartConfigs.chart4);
+}
+
+// Generate integrated filters panel
+function generateIntegratedFilters() {
+    const container = document.getElementById('filtersContainer2');
+    const data = appState.originalData;
+    
+    if (data.length === 0) return;
+
+    const columns = Object.keys(data[0]);
+    const categoricalColumns = columns.filter(col => 
+        appState.columnTypes[col] === 'categorical' || appState.columnTypes[col] === 'text'
+    );
+
+    if (categoricalColumns.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: var(--color-text-secondary); padding: 20px;">No categorical columns available for filtering.</p>';
+        return;
+    }
+
+    let html = '';
+
+    categoricalColumns.forEach(col => {
+        const uniqueValues = [...new Set(data.map(row => row[col]).filter(v => v))].sort();
+        html += '<div class="filter-group-inline">';
+        html += `<label class="filter-title">${col}</label>`;
+        html += '<div class="filter-options">';
+        uniqueValues.forEach(val => {
+            const safeVal = String(val).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            html += `<div class="filter-option">`;
+            html += `<input type="checkbox" class="filter-checkbox" data-column="${col}" data-value="${safeVal}" onchange="onFilterChange()">`;
+            html += `<span>${val}</span>`;
+            html += `</div>`;
+        });
+        html += '</div>';
+        html += '</div>';
+    });
+
+    container.innerHTML = html;
+}
+
+// Create chart controls
+function createChartControls(chartId, config) {
+    const controlsContainer = document.getElementById(chartId + 'Controls');
+    if (!controlsContainer) return;
+    
+    const data = appState.originalData;
+    if (data.length === 0) return;
+    
+    const columns = Object.keys(data[0]);
+    const numericColumns = columns.filter(col => appState.columnTypes[col] === 'numeric');
+    const categoricalColumns = columns.filter(col => 
+        appState.columnTypes[col] === 'categorical' || appState.columnTypes[col] === 'text'
+    );
+    
+    let html = '';
+    
+    // Chart Type Selector
+    html += '<div class="control-group">';
+    html += '<label>Chart Type</label>';
+    html += `<select id="${chartId}-type" onchange="updateChartType('${chartId}')">`;
+    html += `<option value="bar" ${config.type === 'bar' ? 'selected' : ''}>Bar Chart</option>`;
+    html += `<option value="line" ${config.type === 'line' ? 'selected' : ''}>Line Chart</option>`;
+    html += `<option value="scatter" ${config.type === 'scatter' ? 'selected' : ''}>Scatter Plot</option>`;
+    html += `<option value="pie" ${config.type === 'pie' ? 'selected' : ''}>Pie Chart</option>`;
+    html += `<option value="histogram" ${config.type === 'histogram' ? 'selected' : ''}>Histogram</option>`;
+    html += '</select>';
+    html += '</div>';
+    
+    // Show different controls based on chart type
+    if (config.type === 'bar' || config.type === 'pie' || config.type === 'histogram') {
+        // Column selector
+        html += '<div class="control-group">';
+        html += '<label>Column</label>';
+        html += `<select id="${chartId}-column" onchange="updateChartColumn('${chartId}')">`;
+        html += '<option value="">Select Column</option>';
+        categoricalColumns.forEach(col => {
+            html += `<option value="${col}" ${config.column === col ? 'selected' : ''}>${col}</option>`;
+        });
+        html += '</select>';
+        html += '</div>';
+    } else if (config.type === 'line' || config.type === 'scatter') {
+        // X-Axis selector
+        html += '<div class="control-group">';
+        html += '<label>X-Axis</label>';
+        html += `<select id="${chartId}-xcolumn" onchange="updateChartXColumn('${chartId}')">`;
+        html += '<option value="">Select X-Axis</option>';
+        columns.forEach(col => {
+            html += `<option value="${col}" ${config.xColumn === col ? 'selected' : ''}>${col}</option>`;
+        });
+        html += '</select>';
+        html += '</div>';
+        
+        // Y-Axis selector
+        html += '<div class="control-group">';
+        html += '<label>Y-Axis</label>';
+        html += `<select id="${chartId}-ycolumn" onchange="updateChartYColumn('${chartId}')">`;
+        html += '<option value="">Select Y-Axis</option>';
+        numericColumns.forEach(col => {
+            html += `<option value="${col}" ${config.yColumn === col ? 'selected' : ''}>${col}</option>`;
+        });
+        html += '</select>';
+        html += '</div>';
+    }
+    
+    controlsContainer.innerHTML = html;
+}
+
+// Update chart type
+function updateChartType(chartId) {
+    const select = document.getElementById(chartId + '-type');
+    const newType = select.value;
+    appState.chartConfigs[chartId].type = newType;
+    
+    // Recreate controls based on new type
+    createChartControls(chartId, appState.chartConfigs[chartId]);
+    
+    // Re-render chart
+    renderChart(chartId, appState.chartConfigs[chartId]);
+}
+
+// Update chart column
+function updateChartColumn(chartId) {
+    const select = document.getElementById(chartId + '-column');
+    appState.chartConfigs[chartId].column = select.value;
+    renderChart(chartId, appState.chartConfigs[chartId]);
+}
+
+// Update chart X column
+function updateChartXColumn(chartId) {
+    const select = document.getElementById(chartId + '-xcolumn');
+    appState.chartConfigs[chartId].xColumn = select.value;
+    renderChart(chartId, appState.chartConfigs[chartId]);
+}
+
+// Update chart Y column
+function updateChartYColumn(chartId) {
+    const select = document.getElementById(chartId + '-ycolumn');
+    appState.chartConfigs[chartId].yColumn = select.value;
+    renderChart(chartId, appState.chartConfigs[chartId]);
+}
+
+// Render individual chart
+function renderChart(chartId, config) {
+    const container = document.getElementById(chartId);
+    if (!container) return;
+    
+    // Get data (filtered if available, otherwise original)
+    const data = appState.filteredData.length > 0 ? appState.filteredData : appState.originalData;
+    
+    if (!data || data.length === 0) {
+        container.innerHTML = '<p class="no-data">No data available</p>';
+        return;
+    }
+    
+    // Destroy existing chart
+    if (appState.chartInstances[chartId]) {
+        appState.chartInstances[chartId].destroy();
+        delete appState.chartInstances[chartId];
+    }
+    
+    // Clear container
+    container.innerHTML = '';
+    
+    // Create canvas
+    const canvas = document.createElement('canvas');
+    canvas.id = chartId + '_canvas';
+    container.appendChild(canvas);
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Render based on chart type
+    switch(config.type) {
+        case 'bar':
+            renderBarChart(ctx, data, config, chartId);
+            break;
+        case 'line':
+            renderLineChart(ctx, data, config, chartId);
+            break;
+        case 'scatter':
+            renderScatterPlot(ctx, data, config, chartId);
+            break;
+        case 'pie':
+            renderPieChart(ctx, data, config, chartId);
+            break;
+        case 'histogram':
+            renderHistogram(ctx, data, config, chartId);
+            break;
+    }
+}
+
+// Render bar chart
+function renderBarChart(ctx, data, config, chartId) {
+    const columnName = config.column;
+    if (!columnName) {
+        ctx.canvas.parentElement.innerHTML = '<p class="no-data">Please select a column</p>';
+        return;
+    }
+    
+    const frequencies = {};
+    data.forEach(row => {
+        const value = row[columnName];
+        if (value !== undefined && value !== null && value !== '') {
+            frequencies[value] = (frequencies[value] || 0) + 1;
+        }
+    });
+    
+    const labels = Object.keys(frequencies);
+    const values = Object.values(frequencies);
+    const colors = ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F', '#DB4545', '#D2BA4C', '#964325', '#944454', '#13343B'];
+    
+    const chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Count',
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: colors.slice(0, labels.length).map(c => c),
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `${columnName} Distribution`,
+                    font: { size: 16, weight: 'bold' },
+                    padding: 20
+                },
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = values.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed.y / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.parsed.y} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: columnName, font: { size: 14, weight: '600' } },
+                    grid: { display: false }
+                },
+                y: {
+                    title: { display: true, text: 'Count', font: { size: 14, weight: '600' } },
+                    grid: { color: '#e5e5e5' },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+    
+    appState.chartInstances[chartId] = chart;
+}
+
+// Render line chart
+function renderLineChart(ctx, data, config, chartId) {
+    const xColumn = config.xColumn;
+    const yColumn = config.yColumn;
+    
+    if (!xColumn || !yColumn) {
+        ctx.canvas.parentElement.innerHTML = '<p class="no-data">Please select both X and Y axes</p>';
+        return;
+    }
+    
+    const points = data.map(row => ({
+        x: row[xColumn],
+        y: parseFloat(row[yColumn]) || 0
+    })).filter(p => p.x !== undefined && p.y !== undefined);
+    
+    points.sort((a, b) => {
+        if (typeof a.x === 'number') return a.x - b.x;
+        return String(a.x).localeCompare(String(b.x));
+    });
+    
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: points.map(p => p.x),
+            datasets: [{
+                label: yColumn,
+                data: points.map(p => p.y),
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `${yColumn} vs ${xColumn}`,
+                    font: { size: 16, weight: 'bold' }
+                },
+                legend: { display: true, position: 'top' }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: xColumn, font: { size: 14, weight: '600' } },
+                    grid: { color: '#e5e5e5' }
+                },
+                y: {
+                    title: { display: true, text: yColumn, font: { size: 14, weight: '600' } },
+                    grid: { color: '#e5e5e5' }
+                }
+            }
+        }
+    });
+    
+    appState.chartInstances[chartId] = chart;
+}
+
+// Render scatter plot
+function renderScatterPlot(ctx, data, config, chartId) {
+    const xColumn = config.xColumn;
+    const yColumn = config.yColumn;
+    
+    if (!xColumn || !yColumn) {
+        ctx.canvas.parentElement.innerHTML = '<p class="no-data">Please select both X and Y axes</p>';
+        return;
+    }
+    
+    const points = data.map(row => ({
+        x: parseFloat(row[xColumn]) || 0,
+        y: parseFloat(row[yColumn]) || 0
+    }));
+    
+    const chart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: `${yColumn} vs ${xColumn}`,
+                data: points,
+                backgroundColor: 'rgba(124, 58, 237, 0.6)',
+                borderColor: '#7c3aed',
+                borderWidth: 1,
+                pointRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `${yColumn} vs ${xColumn}`,
+                    font: { size: 16, weight: 'bold' }
+                },
+                legend: { display: true, position: 'top' }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: xColumn, font: { size: 14, weight: '600' } },
+                    grid: { color: '#e5e5e5' }
+                },
+                y: {
+                    title: { display: true, text: yColumn, font: { size: 14, weight: '600' } },
+                    grid: { color: '#e5e5e5' }
+                }
+            }
+        }
+    });
+    
+    appState.chartInstances[chartId] = chart;
+}
+
+// Render pie chart
+function renderPieChart(ctx, data, config, chartId) {
+    const columnName = config.column;
+    if (!columnName) {
+        ctx.canvas.parentElement.innerHTML = '<p class="no-data">Please select a column</p>';
+        return;
+    }
+    
+    const frequencies = {};
+    data.forEach(row => {
+        const value = row[columnName];
+        if (value !== undefined && value !== null && value !== '') {
+            frequencies[value] = (frequencies[value] || 0) + 1;
+        }
+    });
+    
+    const labels = Object.keys(frequencies);
+    const values = Object.values(frequencies);
+    const colors = ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F', '#DB4545', '#D2BA4C', '#964325', '#944454', '#13343B'];
+    
+    const chart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: '#ffffff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `${columnName} Distribution`,
+                    font: { size: 16, weight: 'bold' }
+                },
+                legend: {
+                    display: true,
+                    position: 'right',
+                    labels: { font: { size: 12 }, padding: 15 }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = values.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    appState.chartInstances[chartId] = chart;
+}
+
+// Render histogram
+function renderHistogram(ctx, data, config, chartId) {
+    const columnName = config.column;
+    if (!columnName) {
+        ctx.canvas.parentElement.innerHTML = '<p class="no-data">Please select a column</p>';
+        return;
+    }
+    
+    const frequencies = {};
+    data.forEach(row => {
+        const value = row[columnName];
+        if (value !== undefined && value !== null && value !== '') {
+            frequencies[value] = (frequencies[value] || 0) + 1;
+        }
+    });
+    
+    const labels = Object.keys(frequencies);
+    const values = Object.values(frequencies);
+    const colors = ['#1FB8CD', '#FFC185', '#B4413C', '#ECEBD5', '#5D878F', '#DB4545', '#D2BA4C', '#964325', '#944454', '#13343B'];
+    
+    const chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Frequency',
+                data: values,
+                backgroundColor: colors[0],
+                borderColor: colors[0],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: `${columnName} Histogram`,
+                    font: { size: 16, weight: 'bold' },
+                    padding: 20
+                },
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: columnName, font: { size: 14, weight: '600' } },
+                    grid: { display: false }
+                },
+                y: {
+                    title: { display: true, text: 'Frequency', font: { size: 14, weight: '600' } },
+                    grid: { color: '#e5e5e5' },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+    
+    appState.chartInstances[chartId] = chart;
+}
+
+// Re-render all charts
+function renderAllCharts() {
+    Object.keys(appState.chartConfigs).forEach(chartId => {
+        renderChart(chartId, appState.chartConfigs[chartId]);
+    });
+}
+
 function renderAllVisualizations() {
-    generateVisualizations();
+    renderAllCharts();
 }
 
 function generateVisualizations() {
@@ -787,6 +1416,7 @@ function generateVisualizations() {
     }, 100);
 }
 
+// Old chart creation functions (keep for backwards compatibility with Filters section)
 function createBarChart() {
     const column = document.getElementById('bar-column').value;
     const data = appState.filteredData.length > 0 ? appState.filteredData : appState.uploadedData;
