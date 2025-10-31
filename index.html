@@ -39,15 +39,7 @@
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                 </svg>
-                <span>Dashboard Home</span>
-            </a>
-            <a href="#" class="nav-item" data-section="upload">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="17 8 12 3 7 8"></polyline>
-                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-                <span>Upload Data</span>
+                <span>Dashboard</span>
             </a>
             <a href="#" class="nav-item" data-section="visualizations">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -63,19 +55,6 @@
                     <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
                 </svg>
                 <span>Data Quality</span>
-            </a>
-            <a href="#" class="nav-item" data-section="filters">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-                </svg>
-                <span>Filters</span>
-            </a>
-            <a href="#" class="nav-item" data-section="assistant">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg>
-                <span>AI Assistant</span>
             </a>
             <a href="#" class="nav-item" data-section="insights">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -106,86 +85,193 @@
     <div class="main-content" id="mainContent">
         <!-- Dashboard Section -->
         <section class="content-section active" id="section-dashboard">
-            <div class="welcome-screen">
-                <div class="welcome-icon">
-                    <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-                        <circle cx="40" cy="40" r="40" fill="url(#welcomeGradient)"/>
-                        <path d="M20 40L35 25L45 35L60 20" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M50 20H60V30" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-                        <defs>
-                            <linearGradient id="welcomeGradient" x1="0" y1="0" x2="80" y2="80">
-                                <stop offset="0%" stop-color="#2563eb"/>
-                                <stop offset="100%" stop-color="#7c3aed"/>
-                            </linearGradient>
-                        </defs>
-                    </svg>
+            <!-- WELCOME SCREEN - Shows when no data loaded -->
+            <div id="welcomeScreen" class="welcome-screen">
+                <div class="welcome-header">
+                    <div class="welcome-logo">
+                        <svg viewBox="0 0 24 24" fill="currentColor" class="logo-icon">
+                            <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+                        </svg>
+                    </div>
+                    <h1>Welcome to DataInsight Dashboard</h1>
+                    <p class="welcome-subtitle">Your comprehensive data visualization and insights platform</p>
                 </div>
-                <h1>Welcome to DataInsight Dashboard</h1>
-                <p>Your comprehensive data visualization and insights platform</p>
-                <div class="welcome-features">
+                
+                <div class="features-grid">
                     <div class="feature-card">
-                        <div class="feature-icon">📊</div>
+                        <div class="feature-icon" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1h-15V5h15v14.1zm0-16.1h-15c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+                            </svg>
+                        </div>
                         <h3>Interactive Visualizations</h3>
                         <p>Create beautiful charts and graphs from your data</p>
                     </div>
+                    
                     <div class="feature-card">
-                        <div class="feature-icon">🤖</div>
+                        <div class="feature-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                            </svg>
+                        </div>
                         <h3>AI Assistant</h3>
                         <p>Ask questions and get intelligent insights</p>
                     </div>
+                    
                     <div class="feature-card">
-                        <div class="feature-icon">🔍</div>
+                        <div class="feature-icon" style="background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                        </div>
                         <h3>Data Quality Analysis</h3>
                         <p>Identify and fix data quality issues</p>
                     </div>
+                    
                     <div class="feature-card">
-                        <div class="feature-icon">⚡</div>
+                        <div class="feature-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z"/>
+                            </svg>
+                        </div>
                         <h3>Batch Processing</h3>
                         <p>Handle large datasets efficiently</p>
                     </div>
                 </div>
-                <button class="btn btn-primary" onclick="showSection('upload')">Get Started - Upload Data</button>
+                
+                <div class="welcome-cta">
+                    <button class="btn-get-started" onclick="showUploadArea()">
+                        Get Started - Upload Data
+                    </button>
+                </div>
             </div>
-        </section>
-
-        <!-- Upload Section -->
-        <section class="content-section" id="section-upload">
-            <h2>Upload Data</h2>
-            <div class="upload-container">
-                <div class="dropzone" id="dropzone">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline>
-                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                    </svg>
-                    <p>Drag &amp; drop your file here or click to browse</p>
-                    <p class="file-types">Supported formats: .xlsx, .xls, .csv</p>
-                    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display: none;">
+            
+            <!-- UPLOAD AREA - Shows when "Get Started" clicked -->
+            <div id="uploadArea" class="upload-area-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Upload Your Data</h2>
+                    <p>Drag and drop your file or click to browse</p>
                 </div>
-                <div class="upload-progress" id="uploadProgress" style="display: none;">
-                    <div class="progress-info">
-                        <span id="progressText">Processing...</span>
-                        <span id="progressPercent">0%</span>
+                
+                <div class="card upload-card">
+                    <div id="dropzone" class="dropzone">
+                        <div class="dropzone-content">
+                            <svg class="upload-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+                            </svg>
+                            <h3>Drag &amp; drop your file here or click to browse</h3>
+                            <p>Supported formats: .xlsx, .xls, .csv</p>
+                        </div>
+                        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display: none;" />
                     </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill"></div>
-                    </div>
-                </div>
-                <div class="file-info" id="fileInfo" style="display: none;">
-                    <h3>File Information</h3>
-                    <div class="info-grid">
-                        <div><strong>File Name:</strong> <span id="fileName"></span></div>
-                        <div><strong>File Size:</strong> <span id="fileSize"></span></div>
-                        <div><strong>Rows:</strong> <span id="rowCount"></span></div>
-                        <div><strong>Columns:</strong> <span id="columnCount"></span></div>
+                    <div id="uploadProgress" class="upload-progress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <p id="progressText">Processing...</p>
                     </div>
                 </div>
             </div>
-            <div id="dataOverview" style="display: none;">
-                <h3>Data Overview</h3>
-                <div class="data-preview">
-                    <div class="preview-header">First 10 Rows</div>
-                    <div class="table-container" id="previewTable"></div>
+            <!-- DATA OVERVIEW - Shows after upload -->
+            <div id="dataOverview" class="data-overview-section" style="display: none;">
+                <div class="overview-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h3 style="margin: 0;">📊 Dataset Overview</h3>
+                    <button class="btn btn-secondary" onclick="resetUpload()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                        </svg>
+                        Upload New File
+                    </button>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📄</div>
+                        <div class="stat-content">
+                            <div class="stat-label">File Name</div>
+                            <div class="stat-value" id="statFileName">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Total Rows</div>
+                            <div class="stat-value" id="statRows">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📋</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Total Columns</div>
+                            <div class="stat-value" id="statColumns">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💾</div>
+                        <div class="stat-content">
+                            <div class="stat-label">File Size</div>
+                            <div class="stat-value" id="statSize">-</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Column Types Section - HIDDEN -->
+                <div class="card" style="display: none; margin-top: 24px;">
+                    <h4 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #1e293b;">Column Types</h4>
+                    <div id="columnTypesDisplay"></div>
+                </div>
+                
+                <!-- Data Preview Section -->
+                <div class="card" style="margin-top: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 16px;">
+                        <div>
+                            <h4 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600; color: #1e293b;">
+                                Data Preview
+                            </h4>
+                            <p style="margin: 0; font-size: 14px; color: #64748b;">
+                                Filter columns and sort data to explore your dataset
+                            </p>
+                        </div>
+                        <div id="tableInfo" style="font-size: 14px; color: #64748b; text-align: right;">
+                            <div id="tableRowCount"></div>
+                            <div id="tableColumnCount"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Filter Controls -->
+                    <div class="data-preview-controls" id="dataPreviewControls" style="margin-bottom: 16px;">
+                        <div class="control-section">
+                            <label style="font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 8px; display: block;">
+                                Select Columns to Display:
+                            </label>
+                            <div class="columns-filter-container">
+                                <button class="btn-small" onclick="selectAllColumns()">Select All</button>
+                                <button class="btn-small" onclick="deselectAllColumns()">Deselect All</button>
+                                <div id="columnCheckboxes" class="column-checkboxes"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="control-section" style="margin-top: 16px;">
+                            <label style="font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 8px; display: block;">
+                                Sort By:
+                            </label>
+                            <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                                <select id="sortColumnSelect" class="sort-select">
+                                    <option value="">No Sorting</option>
+                                </select>
+                                <select id="sortOrderSelect" class="sort-select">
+                                    <option value="asc">Ascending ↑</option>
+                                    <option value="desc">Descending ↓</option>
+                                </select>
+                                <button class="btn-apply-sort" onclick="applySorting()">Apply Sort</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table id="dataPreviewTable" class="data-table"></table>
+                    </div>
                 </div>
             </div>
         </section>
@@ -195,27 +281,6 @@
             <h2>Data Quality Analysis</h2>
             <div class="quality-container" id="qualityContainer">
                 <div class="no-data-message">Please upload a dataset first to view data quality analysis.</div>
-            </div>
-        </section>
-
-        <!-- Filters Section -->
-        <section class="content-section" id="section-filters">
-            <h2>Data Filters</h2>
-            <div class="filters-header-section" style="display: none;" id="filtersHeaderSection">
-                <div class="filters-actions">
-                    <button id="applyFiltersBtn" class="btn apply-filters-btn" disabled onclick="applyFiltersClick()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-                        </svg>
-                        Apply Filters
-                    </button>
-                    <button class="btn btn-danger" onclick="clearAllFilters()" style="margin-left: 12px;">Clear All Filters</button>
-                    <div id="filterBadge" style="display: none; background: var(--color-primary); color: white; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-left: 12px;"></div>
-                </div>
-                <div class="active-filters" id="activeFilters"></div>
-            </div>
-            <div class="filters-container" id="filtersContainer">
-                <div class="no-data-message">Please upload a dataset first to apply filters.</div>
             </div>
         </section>
 
@@ -241,75 +306,210 @@
                 </div>
             </div>
             
+            <!-- EXPORT ALL CHARTS BUTTON -->
+            <div class="export-all-section" style="margin-bottom: 20px;">
+                <button class="btn btn-primary" onclick="exportAllChartsToPDF()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Export All Charts as PDF
+                </button>
+            </div>
+            
             <!-- ACTIVE FILTERS DISPLAY -->
             <div id="activeFiltersChips" class="active-filters-chips"></div>
             
-            <!-- CHARTS GRID -->
-            <div class="charts-grid" id="chartsGrid" style="display: none;">
-                <!-- Chart 1 -->
-                <div class="chart-card card">
-                    <div class="chart-controls" id="chart1Controls"></div>
-                    <div class="chart-container" id="chart1" style="height: 300px;"></div>
+            <!-- CATEGORICAL TRENDS -->
+            <div class="viz-section" id="categoricalSection" style="display: none;">
+                <div class="viz-section-header">
+                    <h3>📊 Categorical Trends</h3>
+                    <p>Distribution of categorical variables</p>
                 </div>
-                
-                <!-- Chart 2 -->
                 <div class="chart-card card">
-                    <div class="chart-controls" id="chart2Controls"></div>
-                    <div class="chart-container" id="chart2" style="height: 300px;"></div>
+                    <div class="chart-header">
+                        <h4 class="chart-title">Categorical Distribution</h4>
+                        <div class="chart-actions">
+                            <button class="chart-btn" onclick="downloadChartImage('categoricalChart')" title="Download PNG">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            </button>
+                            <button class="chart-btn" onclick="zoomChart('categoricalChart')" title="Zoom">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-controls">
+                        <div class="control-group">
+                            <label>Select Categorical Column</label>
+                            <select id="categoricalColumnSelect" class="chart-select">
+                                <option value="">Choose a column...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-container" id="categoricalChart" style="height: 350px;"></div>
                 </div>
-                
-                <!-- Chart 3 -->
-                <div class="chart-card card">
-                    <div class="chart-controls" id="chart3Controls"></div>
-                    <div class="chart-container" id="chart3" style="height: 300px;"></div>
+            </div>
+            
+            <!-- NUMERIC TRENDS -->
+            <div class="viz-section" id="numericSection" style="display: none;">
+                <div class="viz-section-header">
+                    <h3>📈 Numeric Trends</h3>
+                    <p>Distribution of numeric variables</p>
                 </div>
-                
-                <!-- Chart 4 -->
                 <div class="chart-card card">
-                    <div class="chart-controls" id="chart4Controls"></div>
-                    <div class="chart-container" id="chart4" style="height: 300px;"></div>
+                    <div class="chart-header">
+                        <h4 class="chart-title">Numeric Distribution</h4>
+                        <div class="chart-actions">
+                            <button class="chart-btn" onclick="downloadChartImage('numericChart')" title="Download PNG">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            </button>
+                            <button class="chart-btn" onclick="zoomChart('numericChart')" title="Zoom">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-controls">
+                        <div class="control-group">
+                            <label>Select Numeric Column</label>
+                            <select id="numericColumnSelect" class="chart-select">
+                                <option value="">Choose a column...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-container" id="numericChart" style="height: 350px;"></div>
+                </div>
+            </div>
+            
+            <!-- PROPORTION ANALYSIS -->
+            <div class="viz-section" id="pieSection" style="display: none;">
+                <div class="viz-section-header">
+                    <h3>🥧 Proportion Analysis</h3>
+                    <p>Part-to-whole relationships</p>
+                </div>
+                <div class="chart-card card">
+                    <div class="chart-header">
+                        <h4 class="chart-title">Proportion Analysis</h4>
+                        <div class="chart-actions">
+                            <button class="chart-btn" onclick="downloadChartImage('pieChart')" title="Download PNG">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            </button>
+                            <button class="chart-btn" onclick="zoomChart('pieChart')" title="Zoom">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-controls">
+                        <div class="control-group">
+                            <label>Select Categorical Column</label>
+                            <select id="pieColumnSelect" class="chart-select">
+                                <option value="">Choose a column...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-container" id="pieChart" style="height: 350px;"></div>
+                </div>
+            </div>
+            
+            <!-- VARIABLE COMPARISON -->
+            <div class="viz-section" id="comparisonSection" style="display: none;">
+                <div class="viz-section-header">
+                    <h3>🔀 Variable Comparison</h3>
+                    <p>Relationships between two variables</p>
+                </div>
+                <div class="chart-card card">
+                    <div class="chart-header">
+                        <h4 class="chart-title">Variable Comparison</h4>
+                        <div class="chart-actions">
+                            <button class="chart-btn" onclick="downloadChartImage('comparisonChart')" title="Download PNG">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            </button>
+                            <button class="chart-btn" onclick="zoomChart('comparisonChart')" title="Zoom">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="chart-controls">
+                        <div class="control-group">
+                            <label>Chart Type</label>
+                            <select id="comparisonChartType" class="chart-select">
+                                <option value="scatter">Scatter Plot</option>
+                                <option value="line">Line Chart</option>
+                                <option value="bar">Bar Chart</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>X-Axis</label>
+                            <select id="xAxisSelect" class="chart-select">
+                                <option value="">Choose a column...</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>Y-Axis</label>
+                            <select id="yAxisSelect" class="chart-select">
+                                <option value="">Choose a column...</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>Group By (Optional)</label>
+                            <select id="groupBySelect" class="chart-select">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-container" id="comparisonChart" style="height: 350px;"></div>
                 </div>
             </div>
             
             <div class="no-data-message" id="noVisualizationsMessage">Please upload a dataset first to view visualizations.</div>
         </section>
 
-        <!-- AI Assistant Section -->
-        <section class="content-section" id="section-assistant">
-            <h2>AI Assistant</h2>
-            <div class="chat-container">
-                <div class="chat-messages" id="chatMessages">
-                    <div class="message ai-message">
-                        <div class="message-avatar">🤖</div>
-                        <div class="message-content">
-                            <p>Hello! I'm your AI data assistant. Upload a dataset and ask me questions like:</p>
-                            <ul>
-                                <li>"What is the average value of [column name]?"</li>
-                                <li>"Show me a summary of the data"</li>
-                                <li>"What are the top 5 values in [column name]?"</li>
-                                <li>"Provide insights about the dataset"</li>
-                                <li>"What correlations exist in the data?"</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-                <div class="chat-input-container">
-                    <input type="text" id="chatInput" placeholder="Ask a question about your data..." class="chat-input">
-                    <button class="btn btn-primary" id="sendChatBtn" onclick="sendChatMessage()">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="22" y1="2" x2="11" y2="13"></line>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-        </section>
+
 
         <!-- Insights Section -->
         <section class="content-section" id="section-insights">
-            <h2>Automated Insights</h2>
-            <div class="insights-container" id="insightsContainer">
-                <div class="no-data-message">Please upload a dataset first to view automated insights.</div>
+            <h2>Insights</h2>
+            <p style="color: var(--color-text-secondary); margin-bottom: 24px;">Automatically generated insights from your data</p>
+            
+            <!-- CUSTOM INSIGHTS REQUEST -->
+            <div class="card insights-request-card">
+                <h3>🎯 Custom Insights</h3>
+                <p>Describe what insights you want to extract from your data:</p>
+                <div class="insights-request-form">
+                    <textarea id="insightsRequest" placeholder="Example: Analyze sales trends by region, identify top performing products, find correlations between price and quantity sold, detect any seasonal patterns..."></textarea>
+                    <div class="insights-actions">
+                        <button class="btn btn-primary" onclick="generateInsightsDocument()">
+                            <svg viewBox="0 0 24 24" fill="currentColor" style="width: 20px; height: 20px; margin-right: 8px;">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                            </svg>
+                            Generate Insights
+                        </button>
+                        <button class="btn btn-secondary" id="downloadInsightsBtn" style="display: none;" onclick="downloadInsightsDocument()">
+                            <svg viewBox="0 0 24 24" fill="currentColor" style="width: 20px; height: 20px; margin-right: 8px;">
+                                <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+                            </svg>
+                            Download Document
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- GENERATED INSIGHTS DISPLAY -->
+            <div id="generatedInsights" class="card insights-document-card" style="display: none;">
+                <div class="insights-document-header">
+                    <h3>📄 Generated Insights Document</h3>
+                    <div class="insights-document-meta">
+                        <span id="insightsGeneratedDate"></span>
+                    </div>
+                </div>
+                <div id="insightsDocumentContent" class="insights-document-content"></div>
+            </div>
+            
+            <!-- AUTO-GENERATED QUICK INSIGHTS -->
+            <div class="card">
+                <h3>⚡ Quick Insights</h3>
+                <p>Automatically detected patterns and statistics</p>
+                <div class="insights-grid" id="quickInsightsGrid"></div>
             </div>
         </section>
 
@@ -338,6 +538,52 @@
         </section>
     </div>
 
+    <!-- AI Assistant Floating Button and Panel -->
+    <div id="aiAssistantToggle" class="ai-toggle-btn" onclick="toggleAIAssistant()" title="AI Assistant">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+        </svg>
+    </div>
+
+    <div id="aiAssistantPanel" class="ai-panel">
+        <div class="ai-panel-header">
+            <div class="ai-header-left">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                </svg>
+                <h3>AI Assistant</h3>
+            </div>
+            <button class="ai-close-btn" onclick="toggleAIAssistant()">✕</button>
+        </div>
+        
+        <div class="ai-panel-body" id="aiChatContainer">
+            <div class="ai-welcome-message">
+                <div class="ai-avatar">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                    </svg>
+                </div>
+                <p><strong>👋 Hi! I'm your AI assistant.</strong></p>
+                <p>I can help you analyze your data. Ask me questions like:</p>
+                <ul>
+                    <li>"What is the average sales?"</li>
+                    <li>"Show me the top 5 customers"</li>
+                    <li>"Summarize the data"</li>
+                    <li>"What insights can you find?"</li>
+                </ul>
+            </div>
+            <div id="aiChatHistory"></div>
+        </div>
+        
+        <div class="ai-panel-footer">
+            <input type="text" id="aiChatInput" placeholder="Ask me anything about your data..." onkeypress="if(event.key==='Enter') sendAIMessage()" />
+            <button class="ai-send-btn" onclick="sendAIMessage()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
