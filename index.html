@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataVizard - AI Data Intelligence</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- Gemini API Configuration -->
+    <script>
+        window.GEMINI_API_KEY = window.location.hostname === 'localhost' 
+            ? 'sk-test-key' 
+            : getGeminiApiKey();
+        
+        function getGeminiApiKey() {
+            return window.geminiApiKey || window.GEMINI_KEY || 'sk-default';
+        }
+    </script>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar" id="navbar">
+        <div class="navbar-container">
+            <div class="navbar-brand">
+                <h1>DataVizard</h1>
+            </div>
+            <div class="nav-menu" id="navMenu">
+                <a class="nav-link active" href="#" data-section="dashboard" onclick="switchSection(event, 'dashboard')">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                    Home
+                </a>
+                <a class="nav-link" href="#" data-section="visualizations" onclick="switchSection(event, 'visualizations')">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    Visualizations
+                </a>
+                <a class="nav-link" href="#" data-section="quality" onclick="switchSection(event, 'quality')">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 11l3 3L22 4"></path>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                    Cleaning
+                </a>
+                <a class="nav-link" href="#" data-section="insights" onclick="switchSection(event, 'insights')">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                    Insights
+                </a>
+                <a class="nav-link" href="#" data-section="export" onclick="switchSection(event, 'export')">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Export
+                </a>
+            </div>
+            <button class="hamburger" id="hamburger" onclick="toggleMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        <!-- Dashboard Section (Home) -->
+        <section class="content-section active" id="section-dashboard">
+            <!-- WELCOME SCREEN - Neo-Brutalism Hero -->
+            <div id="welcomeScreen" class="welcome-screen">
+                <div class="welcome-header">
+                    <div class="welcome-logo">
+                        <svg viewBox="0 0 24 24" fill="currentColor" class="logo-icon">
+                            <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+                        </svg>
+                    </div>
+                    <h1>DataVizard</h1>
+                    <p class="welcome-subtitle">
+                        Your Data, Cleaned and Visualized. AI-Powered Insights.
+                    </p>
+                </div>
+                
+                <div class="features-grid">
+                    <div class="feature-card" onclick="switchSection(null, 'visualizations')" style="cursor: pointer;">
+                        <div class="feature-icon">📊</div>
+                        <h3>Smart Visualizations</h3>
+                        <p>Interactive charts, graphs, and heatmaps that reveal hidden patterns in your data.</p>
+                    </div>
+                    <div class="feature-card" onclick="switchSection(null, 'quality')" style="cursor: pointer;">
+                        <div class="feature-icon">🧹</div>
+                        <h3>Data Cleaning</h3>
+                        <p>Automatically detect and fix missing values, duplicates, and outliers with one click.</p>
+                    </div>
+                    <div class="feature-card" onclick="switchSection(null, 'insights')" style="cursor: pointer;">
+                        <div class="feature-icon">🤖</div>
+                        <h3>AI Insights</h3>
+                        <p>Get instant, contextual insights powered by advanced machine learning algorithms.</p>
+                    </div>
+                    <div class="feature-card" onclick="switchSection(null, 'export')" style="cursor: pointer;">
+                        <div class="feature-icon">📈</div>
+                        <h3>Export & Share</h3>
+                        <p>Download your analyses and reports in multiple formats for sharing with teams.</p>
+                    </div>
+                </div>
+                
+                <div class="welcome-cta">
+                    <button class="btn-get-started" onclick="showUploadArea()">→ START ANALYZING</button>
+                </div>
+            </div>
+
+            <!-- UPLOAD AREA - Shows when Get Started clicked -->
+            <div id="uploadArea" class="upload-area-section" style="display: none">
+                <div class="section-header">
+                    <h2>Upload Your Data</h2>
+                    <p>Drag and drop your file or click to browse</p>
+                </div>
+                <div class="card upload-card">
+                    <div id="dropzone" class="dropzone">
+                        <div class="dropzone-content">
+                            <svg class="upload-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+                            </svg>
+                            <h3>Drag & drop your file here or click to browse</h3>
+                            <p>Supported formats: .xlsx, .xls, .csv</p>
+                        </div>
+                        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display: none">
+                    </div>
+                    <div id="uploadProgress" class="upload-progress" style="display: none">
+                        <div class="progress-info">
+                            <span>Uploading...</span>
+                            <span id="progressText">Processing...</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DATA OVERVIEW - Shows after upload -->
+            <div id="dataOverview" class="data-overview-section" style="display: none">
+                <div class="overview-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px">
+                    <h3 style="margin: 0">Dataset Overview</h3>
+                    <button class="btn btn-secondary" onclick="resetUpload()" style="padding: 12px 24px; font-weight: 700;">
+                        ↻ Upload New File
+                    </button>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📄</div>
+                        <div class="stat-label">File Name</div>
+                        <div class="stat-value" id="statFileName">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-label">Total Rows</div>
+                        <div class="stat-value" id="statRows">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📋</div>
+                        <div class="stat-label">Total Columns</div>
+                        <div class="stat-value" id="statColumns">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💾</div>
+                        <div class="stat-label">File Size</div>
+                        <div class="stat-value" id="statSize">-</div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 24px">
+                    <h4 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 700; color: #1A1A1A; text-transform: uppercase; letter-spacing: 0.5px;">Data Preview</h4>
+                    <div class="table-container">
+                        <table id="dataPreviewTable" class="data-table"></table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Data Quality Section (Cleaning) -->
+        <section class="content-section" id="section-quality">
+            <div style="max-width: 1400px; margin: 0 auto; padding: 40px 20px;">
+                <h2 style="font-size: 36px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; margin-bottom: 32px;">Data Cleaning & Quality</h2>
+                <div class="quality-container" id="qualityContainer"></div>
+            </div>
+        </section>
+
+        <!-- Visualizations Section -->
+        <section class="content-section" id="section-visualizations">
+            <div style="max-width: 1400px; margin: 0 auto; padding: 40px 20px;">
+                <h2 style="font-size: 36px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; margin-bottom: 32px;">Data Visualizations</h2>
+                <div class="filters-panel card" id="filtersPanel" style="display: none">
+                    <div class="filters-header" onclick="toggleFiltersPanel()" style="padding: 20px; border-bottom: 3px solid #1A1A1A; cursor: pointer;">
+                        <h3 style="margin: 0; font-size: 16px; font-weight: 700; text-transform: uppercase; display: flex; align-items: center; gap: 8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                            </svg>
+                            Filters
+                        </h3>
+                    </div>
+                    <div class="filters-content" id="filtersContent" style="padding: 20px;">
+                        <div class="filters-actions-row" style="display: flex; gap: 12px; margin-bottom: 16px;">
+                            <button id="applyFiltersBtn2" class="btn btn-primary" disabled onclick="applyFiltersClick()">Apply Filters</button>
+                            <button id="clearFiltersBtn2" class="btn btn-secondary" onclick="clearAllFilters()">Clear All</button>
+                        </div>
+                        <div id="filtersContainer2" class="filters-grid-inline"></div>
+                    </div>
+                </div>
+
+                <!-- Categorical Trends -->
+                <div class="viz-section" id="categoricalSection" style="display: none; margin-bottom: 32px;">
+                    <div class="viz-section-header" style="margin-bottom: 20px;">
+                        <h3 style="font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Categorical Trends</h3>
+                        <p style="font-size: 13px; color: #1A1A1A; margin: 0; letter-spacing: 0.3px;">Distribution of categorical variables</p>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h4 class="chart-title">Categorical Distribution</h4>
+                            <div class="chart-actions">
+                                <button class="chart-btn" onclick="downloadChartImage('categoricalChart')" title="Download PNG">⬇</button>
+                            </div>
+                        </div>
+                        <div class="chart-controls">
+                            <div class="control-group">
+                                <label>Select Column</label>
+                                <select id="categoricalColumnSelect" class="chart-select" onchange="renderCategoricalChart(this.value)">
+                                    <option value="">Choose a column...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="chart-container" id="categoricalChart" style="height: 350px"></div>
+                    </div>
+                </div>
+
+                <!-- Numeric Trends -->
+                <div class="viz-section" id="numericSection" style="display: none; margin-bottom: 32px;">
+                    <div class="viz-section-header" style="margin-bottom: 20px;">
+                        <h3 style="font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Numeric Trends</h3>
+                        <p style="font-size: 13px; color: #1A1A1A; margin: 0; letter-spacing: 0.3px;">Distribution of numeric variables</p>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h4 class="chart-title">Numeric Distribution</h4>
+                            <div class="chart-actions">
+                                <button class="chart-btn" onclick="downloadChartImage('numericChart')" title="Download PNG">⬇</button>
+                            </div>
+                        </div>
+                        <div class="chart-controls">
+                            <div class="control-group">
+                                <label>Select Column</label>
+                                <select id="numericColumnSelect" class="chart-select" onchange="renderNumericChart(this.value)">
+                                    <option value="">Choose a column...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="chart-container" id="numericChart" style="height: 350px"></div>
+                    </div>
+                </div>
+
+                <!-- Pie Chart -->
+                <div class="viz-section" id="pieSection" style="display: none; margin-bottom: 32px;">
+                    <div class="viz-section-header" style="margin-bottom: 20px;">
+                        <h3 style="font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Proportion Analysis</h3>
+                        <p style="font-size: 13px; color: #1A1A1A; margin: 0; letter-spacing: 0.3px;">Part-to-whole relationships</p>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h4 class="chart-title">Proportion Analysis</h4>
+                            <div class="chart-actions">
+                                <button class="chart-btn" onclick="downloadChartImage('pieChart')" title="Download PNG">⬇</button>
+                            </div>
+                        </div>
+                        <div class="chart-controls">
+                            <div class="control-group">
+                                <label>Select Column</label>
+                                <select id="pieColumnSelect" class="chart-select" onchange="renderPieChartViz(this.value)">
+                                    <option value="">Choose a column...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="chart-container" id="pieChart" style="height: 350px"></div>
+                    </div>
+                </div>
+
+                <!-- Comparison Chart -->
+                <div class="viz-section" id="comparisonSection" style="display: none; margin-bottom: 32px;">
+                    <div class="viz-section-header" style="margin-bottom: 20px;">
+                        <h3 style="font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Variable Comparison</h3>
+                        <p style="font-size: 13px; color: #1A1A1A; margin: 0; letter-spacing: 0.3px;">Relationships between two variables</p>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h4 class="chart-title">Variable Comparison</h4>
+                            <div class="chart-actions">
+                                <button class="chart-btn" onclick="downloadChartImage('comparisonChart')" title="Download PNG">⬇</button>
+                            </div>
+                        </div>
+                        <div class="chart-controls">
+                            <div class="control-group">
+                                <label>Chart Type</label>
+                                <select id="comparisonChartType" class="chart-select" onchange="renderComparisonChart()">
+                                    <option value="scatter">Scatter Plot</option>
+                                    <option value="line">Line Chart</option>
+                                    <option value="bar">Bar Chart</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label>X-Axis</label>
+                                <select id="xAxisSelect" class="chart-select" onchange="renderComparisonChart()">
+                                    <option value="">Choose a column...</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label>Y-Axis</label>
+                                <select id="yAxisSelect" class="chart-select" onchange="renderComparisonChart()">
+                                    <option value="">Choose a column...</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label>Group By (Optional)</label>
+                                <select id="groupBySelect" class="chart-select">
+                                    <option value="None"></option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="chart-container" id="comparisonChart" style="height: 350px"></div>
+                    </div>
+                </div>
+
+                <div class="no-data-message" id="noVisualizationsMessage" style="text-align: center; padding: 80px 20px; color: #1A1A1A; font-size: 16px; letter-spacing: 0.5px;">Please upload a dataset first to view visualizations.</div>
+            </div>
+        </section>
+
+        <!-- Insights Section -->
+        <section class="content-section" id="section-insights">
+            <div style="max-width: 1400px; margin: 0 auto; padding: 40px 20px;">
+                <h2 style="font-size: 36px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; margin-bottom: 32px;">AI Insights</h2>
+                <p style="color: #1A1A1A; margin-bottom: 24px; font-size: 14px; letter-spacing: 0.5px;">Automatically generated insights from your data</p>
+                
+                <div class="card" style="margin-bottom: 30px; padding: 24px;">
+                    <div class="insights-request-card">
+                        <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Custom Insights with AI</h3>
+                        <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Describe what insights you want to extract from your data (Powered by Gemini)</p>
+                        <div class="insights-request-form">
+                            <textarea id="insightsRequest" placeholder="Example: Analyze sales trends by region, identify top performing products..." style="width: 100%; min-height: 100px; padding: 12px; border: 2px solid #1A1A1A; border-radius: 0; font-family: monospace; font-size: 13px; letter-spacing: 0.3px; resize: vertical;"></textarea>
+                            <div class="insights-actions" style="display: flex; gap: 12px; margin-top: 16px;">
+                                <button class="btn btn-primary" onclick="generateInsightsDocument()" style="gap: 8px;">
+                                    ✓ Generate Insights
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-bottom: 30px; display: none; padding: 24px;" id="generatedInsights">
+                    <div class="insights-document-header" style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #1A1A1A;">
+                        <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; margin: 0;">Generated Insights Document</h3>
+                        <span id="insightsGeneratedDate" style="font-size: 12px; color: #1A1A1A; letter-spacing: 0.3px;"></span>
+                    </div>
+                    <div id="insightsDocumentContent" class="insights-document-content" style="font-size: 13px; line-height: 1.6;"></div>
+                </div>
+                
+                <div class="card" style="padding: 24px;">
+                    <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Quick Insights</h3>
+                    <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 20px; letter-spacing: 0.3px;">Automatically detected patterns and statistics</p>
+                    <div class="insights-grid" id="quickInsightsGrid"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Export Section -->
+        <section class="content-section" id="section-export">
+            <div style="max-width: 1400px; margin: 0 auto; padding: 40px 20px;">
+                <h2 style="font-size: 36px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; margin-bottom: 32px;">Export & Download</h2>
+                <div class="export-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+                    <div class="export-card card" style="padding: 24px;">
+                        <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Export Filtered Data</h3>
+                        <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Download the current filtered dataset as CSV</p>
+                        <button class="btn btn-primary" onclick="exportFilteredData()" style="width: 100%; justify-content: center;">Download CSV</button>
+                    </div>
+                    <div class="export-card card" style="padding: 24px;">
+                        <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Export Summary</h3>
+                        <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Download a text summary of your dataset</p>
+                        <button class="btn btn-secondary" onclick="exportSummary()" style="width: 100%; justify-content: center;">Download Summary</button>
+                    </div>
+                    <div class="export-card card" style="padding: 24px;">
+                        <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Export Insights</h3>
+                        <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Download automated insights as JSON</p>
+                        <button class="btn btn-secondary" onclick="exportInsights()" style="width: 100%; justify-content: center;">Download Insights</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        // Navigation functionality
+        function switchSection(e, sectionName) {
+            if (e) e.preventDefault();
+            
+            // Hide all sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Remove active class from all nav links
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            
+            // Show selected section
+            const targetSection = document.getElementById(`section-${sectionName}`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            
+            // Add active class to clicked nav link
+            const navLink = document.querySelector(`[data-section="${sectionName}"]`);
+            if (navLink) {
+                navLink.classList.add('active');
+            }
+            
+            // Close menu on mobile
+            closeMenu();
+            
+            // Scroll to top
+            window.scrollTo(0, 0);
+        }
+        
+        function toggleMenu() {
+            const navMenu = document.getElementById('navMenu');
+            const hamburger = document.getElementById('hamburger');
+            navMenu.classList.toggle('active');
+            hamburger.classList.toggle('active');
+        }
+        
+        function closeMenu() {
+            document.getElementById('navMenu').classList.remove('active');
+            document.getElementById('hamburger').classList.remove('active');
+        }
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>
