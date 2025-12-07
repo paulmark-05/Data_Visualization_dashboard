@@ -31,10 +31,10 @@ let appState = {
     history: [],
     missingValueDetails: [],
     outlierDetails: [],
-    cleaningHistory: [] // ✅ FIXED: Store full cleaning state for undo
+    cleaningHistory: []
   },
   visualizationFilters: {},
-  geminiApiKey: '' // ✅ SECURE: NO HARDCODED KEY
+  geminiApiKey: ''
 };
 
 let filtersChanged = false;
@@ -42,6 +42,19 @@ let filtersChanged = false;
 // ========== INITIALIZATION ==========
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🚀 Initializing DataVizard...');
+  
+  // Check XLSX library
+  if (typeof XLSX === 'undefined') {
+    console.error('❌ XLSX library not loaded! Add this to your HTML head:');
+    console.error('<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>');
+  }
+  
+  // Check Chart.js library
+  if (typeof Chart === 'undefined') {
+    console.error('❌ Chart.js library not loaded! Add this to your HTML head:');
+    console.error('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>');
+  }
+  
   loadGeminiApiKeySecurely();
   initializeFileUpload();
   initializeApp();
@@ -49,14 +62,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ========== ✅ SECURE GEMINI API KEY LOADING ==========
 function loadGeminiApiKeySecurely() {
-  // Try window.__GEMINI_API_KEY (set by backend or .env)
   if (window.__GEMINI_API_KEY && window.__GEMINI_API_KEY.length > 10) {
     appState.geminiApiKey = window.__GEMINI_API_KEY;
     console.log('✅ Gemini API Key loaded from environment');
     return;
   }
 
-  // Try sessionStorage (if backend stored it)
   try {
     const sessionKey = sessionStorage.getItem('__gemini_key');
     if (sessionKey && sessionKey.length > 10) {
@@ -68,7 +79,6 @@ function loadGeminiApiKeySecurely() {
     console.warn('⚠️ Session storage access denied');
   }
 
-  // Try window.GEMINI_API_KEY (alternative naming)
   if (window.GEMINI_API_KEY && window.GEMINI_API_KEY.length > 10) {
     appState.geminiApiKey = window.GEMINI_API_KEY;
     console.log('✅ Gemini API Key loaded from window variable');
@@ -115,15 +125,23 @@ async function callGeminiAPISafe(prompt) {
   }
 }
 
-// ========== FILE UPLOAD ==========
+// ========== FILE UPLOAD WITH ENHANCED ERROR HANDLING ==========
 function initializeFileUpload() {
+  console.log('📝 Initializing file upload...');
+  
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
 
-  if (!dropzone || !fileInput) {
-    console.error('❌ Upload elements not found');
+  if (!dropzone) {
+    console.error('❌ Dropzone element not found! Check HTML id="dropzone"');
     return;
   }
+  if (!fileInput) {
+    console.error('❌ File input element not found! Check HTML id="fileInput"');
+    return;
+  }
+
+  console.log('✅ Upload elements found');
 
   // Click to browse
   dropzone.addEventListener('click', function(e) {
@@ -136,6 +154,7 @@ function initializeFileUpload() {
   fileInput.addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (file) {
+      console.log('📋 File selected:', { name: file.name, size: file.size, type: file.type });
       processFile(file);
     }
   });
@@ -159,9 +178,12 @@ function initializeFileUpload() {
     this.classList.remove('dragover');
     const file = e.dataTransfer.files[0];
     if (file) {
+      console.log('📋 File dropped:', { name: file.name, size: file.size });
       processFile(file);
     }
   });
+
+  console.log('✅ File upload initialized');
 }
 
 function initializeApp() {
@@ -210,13 +232,18 @@ function switchSection(e, sectionName) {
   }
 }
 
-// ✅ FILE UPLOAD WITH ERROR FEEDBACK
+// ✅ FILE UPLOAD WITH FULL ERROR HANDLING
 function processFile(file) {
+  console.log('=== FILE UPLOAD START ===');
+  
   const validExtensions = ['xlsx', 'xls', 'csv'];
   const fileExtension = file.name.split('.').pop().toLowerCase();
 
+  console.log('📄 File extension:', fileExtension);
+
   if (!validExtensions.includes(fileExtension)) {
-    showToast('❌ Please upload a valid Excel or CSV file', 'error');
+    console.error('❌ Invalid file type:', fileExtension);
+    showToast('❌ Invalid file type. Upload CSV or Excel (.xlsx, .xls)', 'error');
     return;
   }
 
@@ -227,35 +254,60 @@ function processFile(file) {
   const progressText = document.getElementById('progressText');
   const progressFill = document.getElementById('progressFill');
 
-  if (progressDiv) {
-    progressDiv.style.display = 'block';
-    progressText.textContent = 'Reading file...';
-    progressFill.style.width = '20%';
+  if (!progressDiv) {
+    console.error('❌ Progress elements not found!');
+    showToast('❌ UI elements missing. Check HTML structure.', 'error');
+    return;
   }
+
+  progressDiv.style.display = 'block';
+  progressText.textContent = 'Reading file...';
+  progressFill.style.width = '20%';
 
   const reader = new FileReader();
 
   reader.onload = function(e) {
     try {
-      if (progressText) progressText.textContent = 'Parsing data...';
-      if (progressFill) progressFill.style.width = '60%';
+      console.log('📖 File read successfully');
+      progressText.textContent = 'Parsing data...';
+      progressFill.style.width = '60%';
 
       let jsonData;
+      
       if (fileExtension === 'csv') {
+        console.log('🔄 Parsing CSV...');
         jsonData = parseCSV(e.target.result);
+        console.log('✅ CSV parsed:', jsonData.length, 'rows');
       } else {
+        console.log('🔄 Parsing Excel...');
+        
+        if (typeof XLSX === 'undefined') {
+          throw new Error('XLSX library not loaded. Check if library script is in HTML head');
+        }
+
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
+        
+        console.log('📊 Sheets:', workbook.SheetNames);
+        
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         jsonData = XLSX.utils.sheet_to_json(firstSheet);
+        
+        console.log('✅ Excel parsed:', jsonData.length, 'rows');
       }
 
       if (!jsonData || jsonData.length === 0) {
         throw new Error('File is empty or contains no valid data');
       }
 
-      if (progressText) progressText.textContent = 'Processing data...';
-      if (progressFill) progressFill.style.width = '80%';
+      console.log('📋 Data structure:', {
+        rows: jsonData.length,
+        columns: Object.keys(jsonData[0]).length,
+        columnNames: Object.keys(jsonData[0])
+      });
+
+      progressText.textContent = 'Processing data...';
+      progressFill.style.width = '80%';
 
       appState.originalData = jsonData;
       appState.uploadedData = jsonData;
@@ -274,28 +326,38 @@ function processFile(file) {
         cleaningHistory: []
       };
 
+      console.log('💾 Data stored');
+
       detectColumnTypes(jsonData);
       computeColumnStats(jsonData);
 
-      if (progressText) progressText.textContent = '✅ Complete!';
-      if (progressFill) progressFill.style.width = '100%';
+      console.log('📊 Analysis complete');
+
+      progressText.textContent = '✅ Complete!';
+      progressFill.style.width = '100%';
 
       setTimeout(() => {
+        console.log('🔄 Transitioning to data overview...');
         transitionToDataOverview();
       }, 500);
+
+      console.log('=== FILE UPLOAD SUCCESS ===');
     } catch (error) {
-      console.error('❌ Error processing file:', error);
+      console.error('❌ ERROR:', error.message);
+      console.error('📍 Stack:', error.stack);
       showToast('❌ Error: ' + error.message, 'error');
       if (progressDiv) progressDiv.style.display = 'none';
     }
   };
 
-  reader.onerror = function() {
-    console.error('❌ Error reading file');
+  reader.onerror = function(error) {
+    console.error('❌ File read error:', error);
     showToast('❌ Error reading file', 'error');
     if (progressDiv) progressDiv.style.display = 'none';
   };
 
+  console.log('🔍 Starting file read...');
+  
   if (fileExtension === 'csv') {
     reader.readAsText(file);
   } else {
@@ -305,7 +367,10 @@ function processFile(file) {
 
 function parseCSV(text) {
   const lines = text.split('\n').filter(line => line.trim() !== '');
-  if (lines.length < 2) return [];
+  
+  if (lines.length < 2) {
+    throw new Error('CSV needs headers and at least 1 data row');
+  }
 
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"(.*)"$/, '$1'));
   const data = [];
@@ -377,7 +442,7 @@ function detectColumnTypes(data) {
     appState.columnTypes[col] = 'text';
   });
 
-  console.log('📋 Column types detected:', appState.columnTypes);
+  console.log('📋 Column types:', appState.columnTypes);
 }
 
 function computeColumnStats(data) {
@@ -502,7 +567,6 @@ function generateDataQuality() {
 
   let html = '<div class="quality-section">';
 
-  // Missing values
   html += '<h3>📊 Missing Values</h3>';
   const missingData = [];
   Object.keys(data[0]).forEach(col => {
@@ -522,12 +586,10 @@ function generateDataQuality() {
     html += '</tbody></table>';
   }
 
-  // Duplicates
   html += '<h3>🔄 Duplicates</h3>';
   const duplicates = findDuplicates(data);
   html += `<p>${duplicates} duplicate rows detected</p>`;
 
-  // Outliers
   html += '<h3>⚠️ Outliers</h3>';
   const numericCols = Object.keys(appState.columnTypes).filter(col => appState.columnTypes[col] === 'numeric');
   if (numericCols.length === 0) {
@@ -545,7 +607,6 @@ function generateDataQuality() {
     }
   }
 
-  // Cleaning actions
   html += '<h3>🧹 Data Cleaning Actions</h3>';
   html += `
     <div class="cleaning-buttons">
@@ -556,7 +617,6 @@ function generateDataQuality() {
     </div>
   `;
 
-  // Cleaning history
   if (appState.cleaningActions.history.length > 0) {
     html += '<h4>Cleaning History</h4><ul>';
     appState.cleaningActions.history.forEach(action => {
@@ -612,7 +672,6 @@ function detectOutliersWithDetails(data) {
 function removeDuplicates() {
   const before = appState.cleanedData.length;
 
-  // Save state for undo
   appState.cleaningActions.cleaningHistory.push({
     action: 'removeDuplicates',
     data: JSON.parse(JSON.stringify(appState.cleanedData))
@@ -640,7 +699,6 @@ function removeDuplicates() {
 function fillMissingValues() {
   let filled = 0;
 
-  // Save state for undo
   appState.cleaningActions.cleaningHistory.push({
     action: 'fillMissing',
     data: JSON.parse(JSON.stringify(appState.cleanedData))
@@ -682,7 +740,6 @@ function removeOutliers() {
   const outliers = detectOutliersWithDetails(appState.cleanedData);
   const before = appState.cleanedData.length;
 
-  // Save state for undo
   appState.cleaningActions.cleaningHistory.push({
     action: 'removeOutliers',
     data: JSON.parse(JSON.stringify(appState.cleanedData))
@@ -717,7 +774,7 @@ function removeOutliers() {
   generateDataQuality();
 }
 
-// ✅ FIXED: UNDO CLEANING WITH FULL STATE RESTORATION
+// ✅ UNDO CLEANING WITH FULL STATE RESTORATION
 function undoCleaning() {
   if (appState.cleaningActions.cleaningHistory.length === 0) {
     showToast('❌ No actions to undo', 'warning');
@@ -728,7 +785,6 @@ function undoCleaning() {
   appState.cleanedData = JSON.parse(JSON.stringify(lastAction.data));
   appState.uploadedData = appState.cleanedData;
 
-  // Reset counters and history
   appState.cleaningActions.removedDuplicates = 0;
   appState.cleaningActions.filledMissing = 0;
   appState.cleaningActions.removedOutliers = 0;
@@ -1186,7 +1242,6 @@ async function generateInsights() {
     }
   }
 
-  // ✅ Try Gemini API for AI insights
   let aiInsightText = null;
   if (appState.geminiApiKey) {
     showToast('🤖 Generating AI insights...', 'info');
