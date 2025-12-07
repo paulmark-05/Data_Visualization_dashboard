@@ -1239,250 +1239,77 @@ function renderQuickInsights(insights) {
   });
 }
 
-async function generateInsightsDocument() {
-    const userPrompt = document.getElementById('insightsRequest')?.value?.trim();
-    if (!userPrompt) {
-        showToast('Please describe what insights you want', 'warning');
-        return;
-    }
-    
-    console.log('🤖 Generating insights with Gemini API...');
-    showToast('🔄 Generating insights...', 'info');
-    
-    const data = appState.filteredData.length > 0 ? appState.filteredData : appState.uploadedData;
-    const columns = Object.keys(data[0]);
-    
-    // Prepare data context for Gemini
-    const numericCols = columns.filter(col => appState.columnTypes[col] === 'numeric');
-    const categoricalCols = columns.filter(col => appState.columnTypes[col] === 'categorical');
-    
-    let dataContext = `Dataset Analysis Request:\n`;
-    dataContext += `File: ${appState.fileName}\n`;
-    dataContext += `Total Records: ${data.length}\n`;
-    dataContext += `Columns: ${columns.length}\n`;
-    dataContext += `Numeric Fields: ${numericCols.join(', ')}\n`;
-    dataContext += `Categorical Fields: ${categoricalCols.join(', ')}\n\n`;
-    
-    dataContext += `Key Statistics:\n`;
-    numericCols.slice(0, 5).forEach(col => {
-        const stats = appState.columnStats[col];
-        if (stats) {
-            dataContext += `- ${col}: Mean=${stats.mean}, Median=${stats.median}, StdDev=${stats.stdDev}\n`;
-        }
-    });
-    
-    dataContext += `\nCleaning Actions Applied:\n`;
-    if (appState.cleaningActions.history.length > 0) {
-        appState.cleaningActions.history.forEach(action => {
-            dataContext += `- ${action}\n`;
-        });
-    } else {
-        dataContext += `- None\n`;
-    }
-    
-    dataContext += `\nUser Request:\n${userPrompt}`;
-    
-    // Call Gemini API safely
-    let aiResponse = null;
-    if (appState.geminiApiKey && appState.geminiApiKey.length > 20) {
-        aiResponse = await callGeminiAPISafe(dataContext);
-    }
-    
-    // Build insights document
-    let insightContent = `<h3 style="font-size: 18px; font-weight: 700; margin-bottom: 16px;">📊 Analysis: ${userPrompt}</h3>`;
-    insightContent += `<p style="font-size: 13px; color: #666; margin-bottom: 20px;">Generated: ${new Date().toLocaleString()}${aiResponse ? ' (AI-Powered with Gemini)' : ' (Automated Analysis)'}</p>`;
-    insightContent += `<hr style="border: none; border-top: 1px solid #ddd; margin-bottom: 20px;">`;
-    
-    if (aiResponse) {
-        insightContent += `<h4 style="font-size: 15px; font-weight: 700; margin-top: 20px; margin-bottom: 12px;">🤖 AI Analysis</h4>`;
-        insightContent += `<div style="font-size: 13px; line-height: 1.8; background: #f9fafb; padding: 12px; border-left: 3px solid #3b82f6; border-radius: 4px;">${aiResponse}</div>`;
-    }
-    
-    // Fallback: Automated Analysis
-    insightContent += `<h4 style="font-size: 15px; font-weight: 700; margin-top: 20px; margin-bottom: 12px;">📈 Automated Analysis</h4>`;
-    insightContent += `<ul style="font-size: 13px; line-height: 1.8;">`;
-    insightContent += `<li><strong>Dataset Size:</strong> ${data.length.toLocaleString()} records with ${columns.length} variables</li>`;
-    
-    let totalMissing = 0;
-    columns.forEach(col => {
-        totalMissing += data.filter(row => !row[col] || row[col] === '').length;
-    });
-    insightContent += `<li><strong>Data Quality:</strong> ${totalMissing} missing values total. ${((1 - totalMissing / (data.length * columns.length)) * 100).toFixed(1)}% completeness</li>`;
-    
-    if (numericCols.length > 0) {
-        insightContent += `<li><strong>Numeric Columns:</strong> ${numericCols.length} found (${numericCols.join(', ')})</li>`;
-        const firstNum = numericCols[0];
-        const stats = appState.columnStats[firstNum];
-        if (stats) {
-            insightContent += `<li><strong>Sample Statistic (${firstNum}):</strong> Mean=${stats.mean}, Min=${stats.min}, Max=${stats.max}</li>`;
-        }
-    }
-    
-    if (appState.cleaningActions.history.length > 0) {
-        insightContent += `<li><strong>Cleaning Applied:</strong> ${appState.cleaningActions.history.join('; ')}</li>`;
-    }
-    
-    insightContent += `</ul>`;
-    
-    document.getElementById('insightsDocumentContent').innerHTML = insightContent;
-    document.getElementById('generatedInsights').style.display = 'block';
-    document.getElementById('insightsGeneratedDate').textContent = `Generated: ${new Date().toLocaleString()}`;
-    
-    showSuccessToast('✓ Insights generated!');
-}
-
-// ========== EXPORT ==========
-function exportFilteredData() {
-    const data = appState.filteredData.length > 0 ? appState.filteredData : appState.uploadedData;
-    const columns = Object.keys(data[0]);
-    
-    let csv = columns.join(',') + '\n';
-    data.forEach(row => {
-        csv += columns.map(col => `"${row[col]}"`).join(',') + '\n';
-    });
-    
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `export_${new Date().getTime()}.csv`;
-    a.click();
-    showSuccessToast('✓ Data exported!');
-}
-
-function exportSummary() {
-    const data = appState.uploadedData;
-    const columns = Object.keys(data[0]);
-    let summary = `DataVizard Summary Report\n`;
-    summary += `Generated: ${new Date().toLocaleString()}\n\n`;
-    summary += `Total Rows: ${data.length}\n`;
-    summary += `Total Columns: ${columns.length}\n\n`;
-    summary += `Cleaning Actions: ${appState.cleaningActions.history.join(', ') || 'None'}\n\n`;
-    summary += `Columns:\n`;
-    columns.forEach(col => {
-        const stats = appState.columnStats[col];
-        summary += `- ${col} (${appState.columnTypes[col]})\n`;
-    });
-    
-    const blob = new Blob([summary], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `summary_${new Date().getTime()}.txt`;
-    a.click();
-    showSuccessToast('✓ Summary exported!');
-}
-
-function exportInsights() {
-    const insights = {
-        timestamp: new Date().toISOString(),
-        fileName: appState.fileName,
-        totalRows: appState.uploadedData.length,
-        totalColumns: Object.keys(appState.uploadedData[0]).length,
-        cleaningActions: appState.cleaningActions,
-        columnStats: appState.columnStats,
-        columnTypes: appState.columnTypes
-    };
-    
-    const blob = new Blob([JSON.stringify(insights, null, 2)], { type: 'application/json' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `insights_${new Date().getTime()}.json`;
-    a.click();
-    showSuccessToast('✓ Insights exported!');
-}
-
 // ========== TOAST NOTIFICATIONS ==========
 function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    
-    const colors = {
-        success: '#10b981',
-        error: '#ef4444',
-        warning: '#f59e0b',
-        info: '#3b82f6'
-    };
-    
-    toast.style.cssText = `
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        background: ${colors[type] || colors.info};
-        color: white;
-        padding: 16px 24px;
-        border-radius: 8px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-        z-index: 10000;
-        font-weight: 500;
-        letter-spacing: 0.3px;
-        font-size: 14px;
-        animation: slideInUp 0.3s ease-out;
-    `;
-    
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
+  const colors = {
+    success: '#10b981',
+    error: '#ef4444',
+    warning: '#f59e0b',
+    info: '#3b82f6'
+  };
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: ${colors[type] || colors.info};
+    color: white;
+    padding: 16px 24px;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    z-index: 10000;
+    animation: slideIn 0.3s ease;
+  `;
+
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.animation = 'slideOut 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
 }
 
-function showSuccessToast(message) {
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    
-    toast.style.cssText = `
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        background: #10b981;
-        color: white;
-        padding: 16px 24px;
-        border-radius: 8px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-        z-index: 10000;
-        font-weight: 500;
-        letter-spacing: 0.3px;
-        font-size: 14px;
-        animation: slideInUp 0.3s ease-out;
-    `;
-    
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
+// Export functions
+function exportCleanedData() {
+  const data = appState.cleanedData;
+  if (data.length === 0) {
+    showToast('No data to export', 'warning');
+    return;
+  }
+
+  const csv = convertToCSV(data);
+  downloadFile(csv, 'cleaned_data.csv', 'text/csv');
+  showToast('✅ Data exported', 'success');
 }
 
-// ========== UTILITIES ==========
-function toggleFiltersPanel() {
-    const content = document.getElementById('filtersContent');
-    if (content) {
-        content.style.display = content.style.display === 'none' ? 'block' : 'none';
-    }
+function convertToCSV(data) {
+  if (data.length === 0) return '';
+
+  const columns = Object.keys(data[0]);
+  let csv = columns.join(',') + '\n';
+
+  data.forEach(row => {
+    const values = columns.map(col => {
+      const val = row[col] || '';
+      return `"${val}"`;
+    });
+    csv += values.join(',') + '\n';
+  });
+
+  return csv;
 }
 
-function downloadChartImage(chartId) {
-    const canvas = document.getElementById(chartId + 'Canvas') || document.querySelector(`#${chartId} canvas`);
-    if (!canvas) {
-        showToast('Chart not found', 'warning');
-        return;
-    }
-    
-    const link = document.createElement('a');
-    link.href = canvas.toDataURL('image/png');
-    link.download = `${chartId}-${new Date().getTime()}.png`;
-    link.click();
-    showSuccessToast('✓ Chart downloaded!');
+function downloadFile(content, fileName, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
-
-// Add CSS animation
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideInUp {
-        from {
-            transform: translateY(20px);
-            opacity: 0;
-        }
-        to {
-            transform: translateY(0);
-            opacity: 1;
-        }
-    }
-`;
-document.head.appendChild(style);
