@@ -1517,6 +1517,41 @@ function downloadChartImage(containerId) {
   document.body.removeChild(a);
 }
 
+// Bridges a specific chart to the AI Insights flow: pre-fills a focused
+// question so the user only has to click Generate, instead of the AI
+// panel being a disconnected page from what they're actually looking at.
+function askAIAboutChart(containerId, chartTitle) {
+  if (!appState.isDataLoaded) {
+    showToast("Upload a dataset first.", "warning");
+    return;
+  }
+
+  const columnHints = {
+    categoricalChart: () => document.getElementById("categoricalColumnSelect")?.value,
+    numericChart: () => document.getElementById("numericColumnSelect")?.value,
+    pieChart: () => document.getElementById("pieColumnSelect")?.value,
+    comparisonChart: () => {
+      const x = document.getElementById("xAxisSelect")?.value;
+      const y = document.getElementById("yAxisSelect")?.value;
+      return x && y ? `${x} vs ${y}` : "";
+    },
+    heatmapChart: () => "the numeric columns"
+  };
+  const columnHint = columnHints[containerId] ? columnHints[containerId]() : "";
+
+  const prompt = columnHint
+    ? `Explain the "${chartTitle}" chart (${columnHint}): what patterns, trends, or anomalies stand out, and what should I do about them?`
+    : `Explain the "${chartTitle}" chart: what patterns, trends, or anomalies stand out, and what should I do about them?`;
+
+  switchSection(null, "insights");
+  const textarea = document.getElementById("insightsRequest");
+  if (textarea) {
+    textarea.value = prompt;
+    textarea.focus();
+  }
+  showToast("Question ready — click Generate Insights.", "info");
+}
+
 // ========= MARKDOWN RENDERING =========
 function inlineMarkdown(text) {
   let escaped = escapeHtml(text);
@@ -1665,7 +1700,7 @@ async function generateInsightsDocument() {
 
   if (btn) {
     btn.disabled = true;
-    btn.textContent = "Generating...";
+    btn.innerHTML = '<span class="spinner" aria-hidden="true"></span>Generating...';
   }
 
   try {
@@ -1709,7 +1744,7 @@ async function generateInsightsDocument() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = "✓ Generate Insights";
+      btn.innerHTML = "✓ Generate Insights";
     }
   }
 }

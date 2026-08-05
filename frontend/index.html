@@ -220,160 +220,172 @@
 
         <!-- Visualizations Section -->
         <section class="content-section" id="section-visualizations">
-            <div style="max-width: 1400px; margin: 0 auto; padding: 40px 20px;">
+            <div style="max-width: 1600px; margin: 0 auto; padding: 40px 20px;">
                 <h2 style="font-size: 36px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; margin-bottom: 32px;">Data Visualizations</h2>
-                <div class="filters-panel card" id="filtersPanel" style="display: none">
-                    <div class="filters-header" onclick="toggleFiltersPanel()" style="padding: 20px; border-bottom: 3px solid #1A1A1A; cursor: pointer;">
-                        <h3 style="margin: 0; font-size: 16px; font-weight: 700; text-transform: uppercase; display: flex; align-items: center; gap: 8px;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-                            </svg>
-                            Filters
-                        </h3>
-                    </div>
-                    <div class="filters-content" id="filtersContent" style="padding: 20px;">
-                        <div class="filters-actions-row" style="display: flex; gap: 12px; margin-bottom: 16px;">
-                            <button id="applyFiltersBtn2" class="btn btn-primary" onclick="applyFiltersClick()">Apply Filters</button>
-                            <button id="clearFiltersBtn2" class="btn btn-secondary" onclick="clearAllFilters()">Clear All</button>
-                        </div>
-                        <div id="filtersContainer2" class="filters-grid-inline"></div>
-                    </div>
-                </div>
 
-                <!-- Categorical Trends -->
-                <div class="viz-section" id="categoricalSection" style="display: none; margin-bottom: 32px;">
-                    <div class="viz-section-header" style="margin-bottom: 20px;">
-                        <h3 style="font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Categorical Trends</h3>
-                        <p style="font-size: 13px; color: #1A1A1A; margin: 0; letter-spacing: 0.3px;">Distribution of categorical variables</p>
-                    </div>
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h4 class="chart-title">Categorical Distribution</h4>
-                            <div class="chart-actions">
-                                <button class="chart-btn" onclick="downloadChartImage('categoricalChart')" title="Download PNG" aria-label="Download categorical chart as PNG">⬇</button>
-                            </div>
+                <div class="viz-layout">
+                    <!-- LEFT PANEL: FILTERS -->
+                    <aside class="filters-sidebar card" id="filtersPanel" style="display: none">
+                        <div class="filters-header" onclick="toggleFiltersPanel()">
+                            <h3>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                                </svg>
+                                Filters
+                            </h3>
                         </div>
-                        <div class="chart-controls">
-                            <div class="control-group">
-                                <label>Select Column</label>
-                                <select id="categoricalColumnSelect" class="chart-select" onchange="renderCategoricalChart(this.value)">
-                                    <option value="">Choose a column...</option>
-                                </select>
+                        <div class="filters-content" id="filtersContent">
+                            <div class="filters-actions-row">
+                                <button id="applyFiltersBtn2" class="btn btn-primary" onclick="applyFiltersClick()">Apply</button>
+                                <button id="clearFiltersBtn2" class="btn btn-secondary" onclick="clearAllFilters()">Clear</button>
                             </div>
+                            <div id="filtersContainer2" class="filters-grid-inline"></div>
                         </div>
-                        <div class="chart-container" id="categoricalChart" style="height: 350px"></div>
-                    </div>
-                </div>
+                    </aside>
 
-                <!-- Numeric Trends -->
-                <div class="viz-section" id="numericSection" style="display: none; margin-bottom: 32px;">
-                    <div class="viz-section-header" style="margin-bottom: 20px;">
-                        <h3 style="font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Numeric Trends</h3>
-                        <p style="font-size: 13px; color: #1A1A1A; margin: 0; letter-spacing: 0.3px;">Distribution of numeric variables</p>
-                    </div>
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h4 class="chart-title">Numeric Distribution</h4>
-                            <div class="chart-actions">
-                                <button class="chart-btn" onclick="downloadChartImage('numericChart')" title="Download PNG" aria-label="Download numeric chart as PNG">⬇</button>
+                    <!-- RIGHT PANEL: CHARTS GRID -->
+                    <div class="charts-grid">
+                        <!-- Categorical Trends -->
+                        <div class="viz-section" id="categoricalSection" style="display: none;">
+                            <div class="viz-section-header">
+                                <h3>Categorical Trends</h3>
+                                <p>Distribution of categorical variables</p>
+                            </div>
+                            <div class="chart-card">
+                                <div class="chart-header">
+                                    <h4 class="chart-title">Categorical Distribution</h4>
+                                    <div class="chart-actions">
+                                        <button class="chart-btn" onclick="askAIAboutChart('categoricalChart', 'Categorical Distribution')" title="Ask AI about this chart" aria-label="Ask AI about the categorical distribution chart">🤖</button>
+                                        <button class="chart-btn" onclick="downloadChartImage('categoricalChart')" title="Download PNG" aria-label="Download categorical chart as PNG">⬇</button>
+                                    </div>
+                                </div>
+                                <div class="chart-controls">
+                                    <div class="control-group">
+                                        <label>Select Column</label>
+                                        <select id="categoricalColumnSelect" class="chart-select" onchange="renderCategoricalChart(this.value)">
+                                            <option value="">Choose a column...</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="chart-container" id="categoricalChart"></div>
                             </div>
                         </div>
-                        <div class="chart-controls">
-                            <div class="control-group">
-                                <label>Select Column</label>
-                                <select id="numericColumnSelect" class="chart-select" onchange="renderNumericChart(this.value)">
-                                    <option value="">Choose a column...</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="chart-container" id="numericChart" style="height: 350px"></div>
-                    </div>
-                </div>
 
-                <!-- Pie Chart -->
-                <div class="viz-section" id="pieSection" style="display: none; margin-bottom: 32px;">
-                    <div class="viz-section-header" style="margin-bottom: 20px;">
-                        <h3 style="font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Proportion Analysis</h3>
-                        <p style="font-size: 13px; color: #1A1A1A; margin: 0; letter-spacing: 0.3px;">Part-to-whole relationships</p>
-                    </div>
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h4 class="chart-title">Proportion Analysis</h4>
-                            <div class="chart-actions">
-                                <button class="chart-btn" onclick="downloadChartImage('pieChart')" title="Download PNG" aria-label="Download pie chart as PNG">⬇</button>
+                        <!-- Numeric Trends -->
+                        <div class="viz-section" id="numericSection" style="display: none;">
+                            <div class="viz-section-header">
+                                <h3>Numeric Trends</h3>
+                                <p>Distribution of numeric variables</p>
+                            </div>
+                            <div class="chart-card">
+                                <div class="chart-header">
+                                    <h4 class="chart-title">Numeric Distribution</h4>
+                                    <div class="chart-actions">
+                                        <button class="chart-btn" onclick="askAIAboutChart('numericChart', 'Numeric Distribution')" title="Ask AI about this chart" aria-label="Ask AI about the numeric distribution chart">🤖</button>
+                                        <button class="chart-btn" onclick="downloadChartImage('numericChart')" title="Download PNG" aria-label="Download numeric chart as PNG">⬇</button>
+                                    </div>
+                                </div>
+                                <div class="chart-controls">
+                                    <div class="control-group">
+                                        <label>Select Column</label>
+                                        <select id="numericColumnSelect" class="chart-select" onchange="renderNumericChart(this.value)">
+                                            <option value="">Choose a column...</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="chart-container" id="numericChart"></div>
                             </div>
                         </div>
-                        <div class="chart-controls">
-                            <div class="control-group">
-                                <label>Select Column</label>
-                                <select id="pieColumnSelect" class="chart-select" onchange="renderPieChartViz(this.value)">
-                                    <option value="">Choose a column...</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="chart-container" id="pieChart" style="height: 350px"></div>
-                    </div>
-                </div>
 
-                <!-- Comparison Chart -->
-                <div class="viz-section" id="comparisonSection" style="display: none; margin-bottom: 32px;">
-                    <div class="viz-section-header" style="margin-bottom: 20px;">
-                        <h3 style="font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Variable Comparison</h3>
-                        <p style="font-size: 13px; color: #1A1A1A; margin: 0; letter-spacing: 0.3px;">Relationships between two variables</p>
-                    </div>
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h4 class="chart-title">Variable Comparison</h4>
-                            <div class="chart-actions">
-                                <button class="chart-btn" onclick="downloadChartImage('comparisonChart')" title="Download PNG" aria-label="Download comparison chart as PNG">⬇</button>
+                        <!-- Pie Chart -->
+                        <div class="viz-section" id="pieSection" style="display: none;">
+                            <div class="viz-section-header">
+                                <h3>Proportion Analysis</h3>
+                                <p>Part-to-whole relationships</p>
+                            </div>
+                            <div class="chart-card">
+                                <div class="chart-header">
+                                    <h4 class="chart-title">Proportion Analysis</h4>
+                                    <div class="chart-actions">
+                                        <button class="chart-btn" onclick="askAIAboutChart('pieChart', 'Proportion Analysis')" title="Ask AI about this chart" aria-label="Ask AI about the proportion analysis chart">🤖</button>
+                                        <button class="chart-btn" onclick="downloadChartImage('pieChart')" title="Download PNG" aria-label="Download pie chart as PNG">⬇</button>
+                                    </div>
+                                </div>
+                                <div class="chart-controls">
+                                    <div class="control-group">
+                                        <label>Select Column</label>
+                                        <select id="pieColumnSelect" class="chart-select" onchange="renderPieChartViz(this.value)">
+                                            <option value="">Choose a column...</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="chart-container" id="pieChart"></div>
                             </div>
                         </div>
-                        <div class="chart-controls">
-                            <div class="control-group">
-                                <label>Chart Type</label>
-                                <select id="comparisonChartType" class="chart-select" onchange="renderComparisonChart()">
-                                    <option value="scatter">Scatter Plot</option>
-                                    <option value="line">Line Chart</option>
-                                    <option value="bar">Bar Chart</option>
-                                </select>
-                            </div>
-                            <div class="control-group">
-                                <label>X-Axis</label>
-                                <select id="xAxisSelect" class="chart-select" onchange="renderComparisonChart()">
-                                    <option value="">Choose a column...</option>
-                                </select>
-                            </div>
-                            <div class="control-group">
-                                <label>Y-Axis</label>
-                                <select id="yAxisSelect" class="chart-select" onchange="renderComparisonChart()">
-                                    <option value="">Choose a column...</option>
-                                </select>
-                            </div>
-                            <div class="control-group">
-                                <label>Group By (Optional)</label>
-                                <select id="groupBySelect" class="chart-select" onchange="renderComparisonChart()">
-                                    <option value="">No grouping</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="chart-container" id="comparisonChart" style="height: 350px"></div>
-                    </div>
-                </div>
 
-                <!-- Correlation Heatmap -->
-                <div class="viz-section" id="heatmapSection" style="display: none; margin-bottom: 32px;">
-                    <div class="viz-section-header" style="margin-bottom: 20px;">
-                        <h3 style="font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Correlation Heatmap</h3>
-                        <p style="font-size: 13px; color: #1A1A1A; margin: 0; letter-spacing: 0.3px;">Pearson correlation between numeric columns</p>
-                    </div>
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h4 class="chart-title">Correlation Heatmap</h4>
-                            <div class="chart-actions">
-                                <button class="chart-btn" onclick="downloadChartImage('heatmapChart')" title="Download PNG" aria-label="Download correlation heatmap as PNG">⬇</button>
+                        <!-- Comparison Chart -->
+                        <div class="viz-section" id="comparisonSection" style="display: none;">
+                            <div class="viz-section-header">
+                                <h3>Variable Comparison</h3>
+                                <p>Relationships between two variables</p>
+                            </div>
+                            <div class="chart-card">
+                                <div class="chart-header">
+                                    <h4 class="chart-title">Variable Comparison</h4>
+                                    <div class="chart-actions">
+                                        <button class="chart-btn" onclick="askAIAboutChart('comparisonChart', 'Variable Comparison')" title="Ask AI about this chart" aria-label="Ask AI about the variable comparison chart">🤖</button>
+                                        <button class="chart-btn" onclick="downloadChartImage('comparisonChart')" title="Download PNG" aria-label="Download comparison chart as PNG">⬇</button>
+                                    </div>
+                                </div>
+                                <div class="chart-controls">
+                                    <div class="control-group">
+                                        <label>Chart Type</label>
+                                        <select id="comparisonChartType" class="chart-select" onchange="renderComparisonChart()">
+                                            <option value="scatter">Scatter Plot</option>
+                                            <option value="line">Line Chart</option>
+                                            <option value="bar">Bar Chart</option>
+                                        </select>
+                                    </div>
+                                    <div class="control-group">
+                                        <label>X-Axis</label>
+                                        <select id="xAxisSelect" class="chart-select" onchange="renderComparisonChart()">
+                                            <option value="">Choose a column...</option>
+                                        </select>
+                                    </div>
+                                    <div class="control-group">
+                                        <label>Y-Axis</label>
+                                        <select id="yAxisSelect" class="chart-select" onchange="renderComparisonChart()">
+                                            <option value="">Choose a column...</option>
+                                        </select>
+                                    </div>
+                                    <div class="control-group">
+                                        <label>Group By</label>
+                                        <select id="groupBySelect" class="chart-select" onchange="renderComparisonChart()">
+                                            <option value="">No grouping</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="chart-container" id="comparisonChart"></div>
                             </div>
                         </div>
-                        <div class="chart-container" id="heatmapChart" style="min-height: 350px"></div>
+
+                        <!-- Correlation Heatmap (wider: needs room for axis labels) -->
+                        <div class="viz-section chart-span-2" id="heatmapSection" style="display: none;">
+                            <div class="viz-section-header">
+                                <h3>Correlation Heatmap</h3>
+                                <p>Pearson correlation between numeric columns</p>
+                            </div>
+                            <div class="chart-card">
+                                <div class="chart-header">
+                                    <h4 class="chart-title">Correlation Heatmap</h4>
+                                    <div class="chart-actions">
+                                        <button class="chart-btn" onclick="askAIAboutChart('heatmapChart', 'Correlation Heatmap')" title="Ask AI about this chart" aria-label="Ask AI about the correlation heatmap">🤖</button>
+                                        <button class="chart-btn" onclick="downloadChartImage('heatmapChart')" title="Download PNG" aria-label="Download correlation heatmap as PNG">⬇</button>
+                                    </div>
+                                </div>
+                                <div class="chart-container" id="heatmapChart" style="min-height: 300px"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

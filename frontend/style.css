@@ -807,6 +807,135 @@ body {
   position: relative;
   padding: 20px;
   background: white;
+  height: 300px;
+}
+
+/* ==================== VISUALIZATIONS: TWO-PANEL LAYOUT ====================
+   Left: sticky filters sidebar. Right: responsive charts grid
+   (1 col mobile / 2 col tablet / 3 col desktop). The heatmap needs more
+   horizontal room for its axis labels, so it spans 2 columns. */
+.viz-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .viz-layout {
+    grid-template-columns: 280px 1fr;
+  }
+
+  .filters-sidebar {
+    position: sticky;
+    top: 90px;
+  }
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 768px) {
+  .charts-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1200px) {
+  .charts-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.chart-span-2 {
+  grid-column: span 2;
+}
+
+.charts-grid .viz-section {
+  margin-bottom: 0;
+}
+
+.viz-section-header {
+  margin-bottom: 16px;
+}
+
+.viz-section-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.viz-section-header p {
+  font-size: 12px;
+  color: var(--dark-text);
+  margin: 0;
+  letter-spacing: 0.3px;
+  opacity: 0.75;
+}
+
+/* ==================== FILTERS SIDEBAR ==================== */
+.filters-sidebar {
+  padding: 0;
+}
+
+.filters-sidebar .filters-header {
+  padding: 16px 20px;
+  border-bottom: 3px solid var(--dark-text);
+  cursor: pointer;
+}
+
+.filters-sidebar .filters-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filters-sidebar .filters-content {
+  padding: 16px 20px;
+}
+
+.filters-sidebar .filters-actions-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.filters-sidebar .filters-actions-row .btn {
+  flex: 1;
+  justify-content: center;
+  padding: 10px 12px;
+}
+
+.filters-sidebar .filters-grid-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ==================== LOADING SPINNER (AI actions) ==================== */
+.spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ==================== INSIGHTS ==================== */
