@@ -58,3 +58,11 @@ public/uploads/
 # Dependencies lock files (optional - uncomment if team uses same versions)
 # package-lock.json
 # yarn.lock
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Claude Code local dev config (machine-specific paths)
+.claude/
