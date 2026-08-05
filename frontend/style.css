@@ -1357,6 +1357,15 @@ body {
   word-break: break-word;
 }
 
+#insightsRequest {
+  border: 2px solid var(--dark-text);
+  border-radius: 0;
+}
+
+.insights-document-header {
+  border-bottom: 2px solid var(--dark-text);
+}
+
 .insights-document-content h2,
 .insights-document-content h3,
 .insights-document-content h4 {
@@ -1401,6 +1410,7 @@ body {
 [data-theme="dark"] .table-container,
 [data-theme="dark"] .upload-area-section,
 [data-theme="dark"] .quality-summary-item,
+[data-theme="dark"] .insight-card,
 [data-theme="dark"] .nav-menu {
   background: #1E1E1E;
   color: #F0F0F0;
@@ -1415,6 +1425,12 @@ body {
   background: linear-gradient(135deg, #121212 0%, #1A1A1A 100%);
 }
 
+/* Text that sits directly on a surface which DOES go dark above
+   (cards, navbar, welcome screen, dropzone) needs to flip to light.
+   Anything that stays on its own pastel accent background (chart
+   headers/controls, nav-link hover/active, table header row, badges,
+   buttons) is handled separately below and deliberately keeps dark
+   text, since that background never changes with the theme. */
 [data-theme="dark"] .welcome-header h1,
 [data-theme="dark"] .welcome-subtitle,
 [data-theme="dark"] .nav-link,
@@ -1425,15 +1441,28 @@ body {
 [data-theme="dark"] .stat-value,
 [data-theme="dark"] .stat-label,
 [data-theme="dark"] .overview-header h3,
-[data-theme="dark"] .chart-title,
-[data-theme="dark"] .control-group label,
 [data-theme="dark"] .dropzone-content h3,
-[data-theme="dark"] .dropzone-content p {
+[data-theme="dark"] .dropzone-content p,
+[data-theme="dark"] .no-data-message,
+[data-theme="dark"] .preview-row-count,
+[data-theme="dark"] .insights-document-content {
   color: #F0F0F0;
+}
+
+/* nav-link default state sits on the dark navbar; hover/active swap to
+   a pastel chip background, so they need to stay dark-on-pastel */
+[data-theme="dark"] .nav-link:hover,
+[data-theme="dark"] .nav-link.active {
+  color: var(--dark-text);
 }
 
 [data-theme="dark"] .nav-link svg {
   stroke: #F0F0F0;
+}
+
+[data-theme="dark"] .nav-link:hover svg,
+[data-theme="dark"] .nav-link.active svg {
+  stroke: var(--dark-text);
 }
 
 [data-theme="dark"] .dropzone {
@@ -1447,38 +1476,49 @@ body {
 [data-theme="dark"] textarea {
   background: #1A1A1A;
   color: #F0F0F0;
-  border-color: #F0F0F0;
+  border-color: #F0F0F0 !important; /* beats the legacy inline border on #insightsRequest */
 }
 
-[data-theme="dark"] .data-table th,
+/* Numeric-filter labels in the sidebar sit on the now-dark sidebar
+   card, unlike the same .control-group label markup used inside
+   .chart-controls (which stays pastel-yellow and needs dark text) */
+[data-theme="dark"] .filters-sidebar .control-group label,
+[data-theme="dark"] .filters-sidebar label {
+  color: #F0F0F0;
+}
+
+[data-theme="dark"] .filters-sidebar .filters-header {
+  border-bottom-color: #F0F0F0;
+}
+
+/* Table body rows sit on the dark .table-container/.card; the header
+   row keeps its pastel-blue background, so it (and the type badges
+   inside it) stay on the dark-text base rule intentionally. */
 [data-theme="dark"] .data-table td {
   color: #F0F0F0;
-  border-color: #444;
-}
-
-[data-theme="dark"] .data-table td {
-  border-right-color: #333;
-  border-bottom-color: #333;
+  border-color: #333;
 }
 
 [data-theme="dark"] .data-table tbody tr:hover {
   background: #2A2A1A;
 }
 
+[data-theme="dark"] .insights-document-header {
+  border-bottom-color: #F0F0F0 !important; /* beats the legacy inline border-bottom */
+}
+
+[data-theme="dark"] .quality-summary-item,
+[data-theme="dark"] .cleaning-history-list li {
+  color: #F0F0F0;
+}
+
 [data-theme="dark"] .btn,
 [data-theme="dark"] .btn-get-started,
 [data-theme="dark"] .chart-btn,
-[data-theme="dark"] .insight-card,
 [data-theme="dark"] .stat-card,
 [data-theme="dark"] .cleaning-history-list li,
 [data-theme="dark"] .quality-summary-item {
   border-color: #F0F0F0;
-}
-
-[data-theme="dark"] .insight-card,
-[data-theme="dark"] .quality-summary-item,
-[data-theme="dark"] .cleaning-history-list li {
-  color: #F0F0F0;
 }
 
 [data-theme="dark"] .toast {
@@ -1611,6 +1651,9 @@ th.sortable .sort-indicator {
   margin-left: 6px;
   border: 1px solid var(--dark-text);
   vertical-align: middle;
+  /* Always its own pastel chip regardless of theme, so it always needs
+     dark text - never inherit the (theme-dependent) text color. */
+  color: var(--dark-text);
 }
 
 .type-badge.numeric { background: var(--pastel-blue); }

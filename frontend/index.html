@@ -197,7 +197,7 @@
                 </div>
                 <div class="card" style="margin-top: 24px">
                     <div class="preview-toolbar">
-                        <h4 style="margin: 0; font-size: 16px; font-weight: 700; color: #1A1A1A; text-transform: uppercase; letter-spacing: 0.5px;">Data Preview</h4>
+                        <h4 style="margin: 0; font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Data Preview</h4>
                         <div class="preview-toolbar-controls">
                             <input type="text" id="previewSearch" class="chart-select" placeholder="Search rows..." oninput="renderPreviewTable()" aria-label="Search preview rows">
                             <span id="previewRowCount" class="preview-row-count"></span>
@@ -389,7 +389,7 @@
                     </div>
                 </div>
 
-                <div class="no-data-message" id="noVisualizationsMessage" style="text-align: center; padding: 80px 20px; color: #1A1A1A; font-size: 16px; letter-spacing: 0.5px; display: none;">Please upload a dataset first to view visualizations.</div>
+                <div class="no-data-message" id="noVisualizationsMessage" style="text-align: center; padding: 80px 20px; font-size: 16px; letter-spacing: 0.5px; display: none;">Please upload a dataset first to view visualizations.</div>
             </div>
         </section>
 
@@ -397,14 +397,14 @@
         <section class="content-section" id="section-insights">
             <div style="max-width: 1400px; margin: 0 auto; padding: 40px 20px;">
                 <h2 style="font-size: 36px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; margin-bottom: 32px;">AI Insights</h2>
-                <p style="color: #1A1A1A; margin-bottom: 24px; font-size: 14px; letter-spacing: 0.5px;">Automatically generated insights from your data</p>
+                <p style="margin-bottom: 24px; font-size: 14px; letter-spacing: 0.5px;">Automatically generated insights from your data</p>
 
                 <div class="card" style="margin-bottom: 30px; padding: 24px;">
                     <div class="insights-request-card">
                         <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Custom Insights with AI</h3>
-                        <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Describe what insights you want to extract from your data (Powered by Gemini, via our backend)</p>
+                        <p style="font-size: 13px; margin-bottom: 16px; letter-spacing: 0.3px;">Describe what insights you want to extract from your data (Powered by Gemini, via our backend)</p>
                         <div class="insights-request-form">
-                            <textarea id="insightsRequest" placeholder="Example: Analyze sales trends by region, identify top performing products..." style="width: 100%; min-height: 100px; padding: 12px; border: 2px solid #1A1A1A; border-radius: 0; font-family: monospace; font-size: 13px; letter-spacing: 0.3px; resize: vertical;"></textarea>
+                            <textarea id="insightsRequest" placeholder="Example: Analyze sales trends by region, identify top performing products..." style="width: 100%; min-height: 100px; padding: 12px; font-family: monospace; font-size: 13px; letter-spacing: 0.3px; resize: vertical;"></textarea>
                             <div class="insights-actions" style="display: flex; gap: 12px; margin-top: 16px;">
                                 <button class="btn btn-primary" id="generateInsightsBtn" onclick="generateInsightsDocument()" style="gap: 8px;">
                                     ✓ Generate Insights
@@ -415,16 +415,16 @@
                 </div>
 
                 <div class="card" style="margin-bottom: 30px; display: none; padding: 24px;" id="generatedInsights">
-                    <div class="insights-document-header" style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #1A1A1A;">
+                    <div class="insights-document-header" style="margin-bottom: 20px; padding-bottom: 16px;">
                         <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; margin: 0;">Generated Insights Document</h3>
-                        <span id="insightsGeneratedDate" style="font-size: 12px; color: #1A1A1A; letter-spacing: 0.3px;"></span>
+                        <span id="insightsGeneratedDate" style="font-size: 12px; letter-spacing: 0.3px;"></span>
                     </div>
                     <div id="insightsDocumentContent" class="insights-document-content" style="font-size: 13px; line-height: 1.6;"></div>
                 </div>
 
                 <div class="card" style="padding: 24px;">
                     <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Quick Insights</h3>
-                    <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 20px; letter-spacing: 0.3px;">Automatically detected patterns and statistics</p>
+                    <p style="font-size: 13px; margin-bottom: 20px; letter-spacing: 0.3px;">Automatically detected patterns and statistics</p>
                     <div class="insights-grid" id="quickInsightsGrid"></div>
                 </div>
             </div>
@@ -437,7 +437,7 @@
                 <div class="export-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
                     <div class="export-card card" style="padding: 24px;">
                         <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Export Filtered Data</h3>
-                        <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Download the current filtered (or cleaned) dataset</p>
+                        <p style="font-size: 13px; margin-bottom: 16px; letter-spacing: 0.3px;">Download the current filtered (or cleaned) dataset</p>
                         <div style="display: flex; gap: 12px;">
                             <button class="btn btn-primary" onclick="exportFilteredData()" style="flex: 1; justify-content: center;">CSV</button>
                             <button class="btn btn-primary" onclick="exportFilteredDataXLSX()" style="flex: 1; justify-content: center;">XLSX</button>
@@ -445,17 +445,17 @@
                     </div>
                     <div class="export-card card" style="padding: 24px;">
                         <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Export Summary</h3>
-                        <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Download a text summary of your dataset and cleaning log</p>
+                        <p style="font-size: 13px; margin-bottom: 16px; letter-spacing: 0.3px;">Download a text summary of your dataset and cleaning log</p>
                         <button class="btn btn-secondary" onclick="exportSummary()" style="width: 100%; justify-content: center;">Download Summary</button>
                     </div>
                     <div class="export-card card" style="padding: 24px;">
                         <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Export Insights</h3>
-                        <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Download automated + AI insights as JSON</p>
+                        <p style="font-size: 13px; margin-bottom: 16px; letter-spacing: 0.3px;">Download automated + AI insights as JSON</p>
                         <button class="btn btn-secondary" onclick="exportInsights()" style="width: 100%; justify-content: center;">Download Insights</button>
                     </div>
                     <div class="export-card card" style="padding: 24px;">
                         <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">PDF Report</h3>
-                        <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Bundle rendered charts + insights into one PDF</p>
+                        <p style="font-size: 13px; margin-bottom: 16px; letter-spacing: 0.3px;">Bundle rendered charts + insights into one PDF</p>
                         <button class="btn btn-secondary" id="exportPdfBtn" onclick="exportPDFReport()" style="width: 100%; justify-content: center;">Download PDF</button>
                     </div>
                 </div>
