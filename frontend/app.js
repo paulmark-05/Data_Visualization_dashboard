@@ -1,33 +1,29 @@
 
 // ========= GLOBAL APP STATE =========
 let appState = {
-  uploadedData: [],
-  filteredData: [],
   originalData: [],
   cleanedData: [],
-  activeFilters: {},
+  filteredData: [],
   columnTypes: {},
   columnStats: {},
   fileName: "",
   fileSize: 0,
   isDataLoaded: false,
   chartInstances: {},
+  activeFilters: {},
   cleaningActions: {
     removedDuplicates: 0,
     filledMissing: 0,
     removedOutliers: 0,
     history: [],
-    missingValueDetails: [],
-    outlierDetails: [],
-    cleaningHistory: [],
     undoStack: []
   },
-  currentInsights: null
+  currentInsights: null,
+  quickInsights: []
 };
 
 document.addEventListener("DOMContentLoaded", () => {
   initializeFileUpload();
-  initializeApp();
 });
 
 // ========= NAVIGATION =========
@@ -39,31 +35,36 @@ function switchSection(e, sectionName) {
   if (target) target.classList.add("active");
 
   document.querySelectorAll(".nav-link").forEach(l => l.classList.remove("active"));
-  const link = document.querySelector(`.nav-link[data-section='${sectionName}']`);
+  const link = document.querySelector(`.nav-link[data-section="${sectionName}"]`);
   if (link) link.classList.add("active");
 
-  if (!appState.isDataLoaded && sectionName !== "dashboard") {
-    showToast("Upload a dataset first.", "warning");
+  closeMenu();
+  window.scrollTo(0, 0);
+
+  if (!appState.isDataLoaded) {
+    if (sectionName !== "dashboard") {
+      showToast("Please upload a dataset first.", "warning");
+    }
     return;
   }
 
   if (sectionName === "visualizations") {
     setTimeout(initializeVisualizations, 20);
   } else if (sectionName === "insights") {
-    setTimeout(generateInsights, 20);
-  } else if (sectionName === "cleaning") {
+    setTimeout(renderQuickInsights, 20);
+  } else if (sectionName === "quality") {
     setTimeout(generateDataQuality, 20);
   }
 }
 
-function initializeApp() {
-  document.querySelectorAll(".nav-link").forEach(link => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      const section = link.getAttribute("data-section");
-      switchSection(e, section);
-    });
-  });
+function toggleMenu() {
+  document.getElementById("navMenu").classList.toggle("active");
+  document.getElementById("hamburger").classList.toggle("active");
+}
+
+function closeMenu() {
+  document.getElementById("navMenu").classList.remove("active");
+  document.getElementById("hamburger").classList.remove("active");
 }
 
 // ========= FILE UPLOAD =========
@@ -72,7 +73,9 @@ function initializeFileUpload() {
   const dropzone = document.getElementById("dropzone");
   if (!input || !dropzone) return;
 
-  dropzone.addEventListener("click", () => input.click());
+  dropzone.addEventListener("click", (e) => {
+    if (e.target.tagName !== "INPUT") input.click();
+  });
 
   input.addEventListener("change", (e) => {
     const file = e.target.files[0];
@@ -100,6 +103,39 @@ function initializeFileUpload() {
   });
 }
 
+function showUploadArea() {
+  document.getElementById("welcomeScreen").style.display = "none";
+  document.getElementById("uploadArea").style.display = "block";
+}
+
+function resetUpload() {
+  appState.originalData = [];
+  appState.cleanedData = [];
+  appState.filteredData = [];
+  appState.isDataLoaded = false;
+  appState.fileName = "";
+  appState.fileSize = 0;
+  appState.activeFilters = {};
+  appState.cleaningActions = { removedDuplicates: 0, filledMissing: 0, removedOutliers: 0, history: [], undoStack: [] };
+  appState.currentInsights = null;
+  appState.quickInsights = [];
+
+  Object.keys(appState.chartInstances).forEach(id => {
+    if (appState.chartInstances[id]) appState.chartInstances[id].destroy();
+  });
+  appState.chartInstances = {};
+
+  document.getElementById("welcomeScreen").style.display = "block";
+  document.getElementById("uploadArea").style.display = "none";
+  document.getElementById("dataOverview").style.display = "none";
+  document.getElementById("fileInput").value = "";
+
+  const generated = document.getElementById("generatedInsights");
+  if (generated) generated.style.display = "none";
+
+  showToast("Ready for a new upload.", "info");
+}
+
 function processFile(file) {
   const ext = file.name.split(".").pop().toLowerCase();
   if (!CONFIG.FILE_UPLOAD.ALLOWED_FORMATS.includes(ext)) {
@@ -107,7 +143,7 @@ function processFile(file) {
     return;
   }
   if (file.size > CONFIG.FILE_UPLOAD.MAX_FILE_SIZE_BYTES) {
-    showToast("File too large (50MB max).", "error");
+    showToast(`File too large (${CONFIG.FILE_UPLOAD.MAX_FILE_SIZE_MB}MB max).`, "error");
     return;
   }
 
@@ -117,19 +153,16 @@ function processFile(file) {
   const progressDiv = document.getElementById("uploadProgress");
   const progressText = document.getElementById("progressText");
   const progressFill = document.getElementById("progressFill");
-  const progressValue = document.getElementById("progressValue");
 
   if (progressDiv) progressDiv.style.display = "block";
-  if (progressText) progressText.textContent = "Reading file…";
-  if (progressFill) progressFill.style.width = "10%";
-  if (progressValue) progressValue.textContent = "10%";
+  if (progressText) progressText.textContent = "Reading file...";
+  if (progressFill) progressFill.style.width = "20%";
 
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
-      if (progressText) progressText.textContent = "Parsing data…";
-      if (progressFill) progressFill.style.width = "50%";
-      if (progressValue) progressValue.textContent = "50%";
+      if (progressText) progressText.textContent = "Parsing data...";
+      if (progressFill) progressFill.style.width = "60%";
 
       let jsonData;
       if (ext === "csv") {
@@ -145,32 +178,24 @@ function processFile(file) {
         throw new Error("File is empty or has no valid rows.");
       }
 
+      if (progressText) progressText.textContent = "Processing data...";
+      if (progressFill) progressFill.style.width = "85%";
+
       appState.originalData = jsonData;
-      appState.uploadedData = jsonData;
       appState.cleanedData = JSON.parse(JSON.stringify(jsonData));
       appState.filteredData = [];
       appState.isDataLoaded = true;
       appState.activeFilters = {};
-      appState.cleaningActions = {
-        removedDuplicates: 0,
-        filledMissing: 0,
-        removedOutliers: 0,
-        history: [],
-        missingValueDetails: [],
-        outlierDetails: [],
-        cleaningHistory: [],
-        undoStack: []
-      };
+      appState.cleaningActions = { removedDuplicates: 0, filledMissing: 0, removedOutliers: 0, history: [], undoStack: [] };
+      appState.currentInsights = null;
 
       detectColumnTypes(jsonData);
       computeColumnStats(jsonData);
-      renderDataOverview();
 
-      if (progressText) progressText.textContent = "Complete.";
+      if (progressText) progressText.textContent = "Complete!";
       if (progressFill) progressFill.style.width = "100%";
-      if (progressValue) progressValue.textContent = "100%";
 
-      showToast("File loaded successfully.", "success");
+      setTimeout(transitionToDataOverview, 400);
     } catch (err) {
       console.error(err);
       showToast("Error parsing file: " + err.message, "error");
@@ -223,7 +248,6 @@ function parseCSVLine(line) {
 }
 
 function parseCSVRows(text) {
-  // Split into logical rows, respecting newlines embedded inside quoted fields.
   const rows = [];
   let row = "";
   let inQuotes = false;
@@ -260,115 +284,272 @@ function parseCSV(text) {
   return rows;
 }
 
-// ========= DATA OVERVIEW =========
-function renderDataOverview() {
-  const { fileName, fileSize, originalData } = appState;
-  const rows = originalData.length;
-  const cols = rows > 0 ? Object.keys(originalData[0]).length : 0;
-
-  const nameEl = document.getElementById("statFileName");
-  const rowsEl = document.getElementById("statRows");
-  const colsEl = document.getElementById("statColumns");
-  const sizeEl = document.getElementById("statSize");
-
-  if (nameEl) nameEl.textContent = fileName || "–";
-  if (rowsEl) rowsEl.textContent = rows.toLocaleString();
-  if (colsEl) colsEl.textContent = cols.toLocaleString();
-  if (sizeEl) sizeEl.textContent = (fileSize / 1024).toFixed(1) + " KB";
-
-  renderPreviewTable(originalData);
-}
-
-function renderPreviewTable(data) {
-  const container = document.getElementById("dataPreview");
-  if (!container) return;
-  container.innerHTML = "";
-
-  if (!data || data.length === 0) {
-    container.textContent = "No data loaded.";
-    return;
-  }
-
-  const table = document.createElement("table");
-  const thead = document.createElement("thead");
-  const tbody = document.createElement("tbody");
-
-  const columns = Object.keys(data[0]);
-  const headerRow = document.createElement("tr");
-  columns.forEach(col => {
-    const th = document.createElement("th");
-    th.textContent = col;
-    headerRow.appendChild(th);
-  });
-  thead.appendChild(headerRow);
-
-  data.slice(0, 20).forEach(row => {
-    const tr = document.createElement("tr");
-    columns.forEach(col => {
-      const td = document.createElement("td");
-      td.textContent = row[col];
-      tr.appendChild(td);
-    });
-    tbody.appendChild(tr);
-  });
-
-  table.appendChild(thead);
-  table.appendChild(tbody);
-  container.appendChild(table);
-}
-
 // ========= COLUMN TYPING & STATS =========
 function detectColumnTypes(data) {
   if (!data || data.length === 0) return;
-  const first = data[0];
-  const types = {};
-  Object.keys(first).forEach(col => {
-    let numericCount = 0;
-    let nonEmpty = 0;
-    data.forEach(row => {
-      const val = row[col];
-      if (val !== null && val !== undefined && String(val).trim() !== "") {
-        nonEmpty++;
-        if (!isNaN(parseFloat(val))) numericCount++;
-      }
-    });
-    if (numericCount > 0 && numericCount / Math.max(nonEmpty, 1) > 0.7) {
-      types[col] = "numeric";
-    } else {
-      types[col] = "categorical";
+  const columns = Object.keys(data[0]);
+  appState.columnTypes = {};
+
+  columns.forEach(col => {
+    const sample = data.slice(0, 100).map(row => row[col]).filter(v => v !== null && v !== undefined && v !== "");
+
+    if (sample.length === 0) {
+      appState.columnTypes[col] = "text";
+      return;
     }
+
+    const numericCount = sample.filter(v => !isNaN(parseFloat(v)) && isFinite(v)).length;
+    if (numericCount / sample.length > 0.8) {
+      appState.columnTypes[col] = "numeric";
+      return;
+    }
+
+    const dateCount = sample.filter(v => !isNaN(Date.parse(v))).length;
+    if (dateCount / sample.length > 0.8) {
+      appState.columnTypes[col] = "date";
+      return;
+    }
+
+    const uniqueValues = new Set(sample);
+    if (uniqueValues.size < 20 || uniqueValues.size / sample.length < 0.5) {
+      appState.columnTypes[col] = "categorical";
+      return;
+    }
+
+    appState.columnTypes[col] = "text";
   });
-  appState.columnTypes = types;
+}
+
+function getMedian(arr) {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function getStdDev(arr) {
+  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+  const variance = arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length;
+  return Math.sqrt(variance);
 }
 
 function computeColumnStats(data) {
   if (!data || data.length === 0) return;
-  const stats = {};
-  const columns = Object.keys(data[0]);
+  appState.columnStats = {};
 
-  columns.forEach(col => {
-    const values = data
-      .map(row => parseFloat(row[col]))
-      .filter(v => !isNaN(v));
-    if (values.length === 0) return;
+  Object.keys(data[0]).forEach(col => {
+    const stats = {};
+    const values = data.map(row => row[col]).filter(v => v !== "" && v !== null && v !== undefined);
 
-    const sorted = [...values].sort((a, b) => a - b);
-    const n = sorted.length;
-    const sum = sorted.reduce((a, b) => a + b, 0);
-    const mean = sum / n;
-    const median = n % 2 === 0 ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2 : sorted[Math.floor(n / 2)];
-    const min = sorted[0];
-    const max = sorted[n - 1];
-    const q1 = sorted[Math.floor(n * 0.25)];
-    const q3 = sorted[Math.floor(n * 0.75)];
+    stats.nonNullCount = values.length;
+    stats.nullCount = data.length - values.length;
+    stats.uniqueCount = new Set(values).size;
 
-    stats[col] = { mean, median, min, max, q1, q3, count: n };
+    if (appState.columnTypes[col] === "numeric") {
+      const numValues = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
+      if (numValues.length > 0) {
+        stats.min = Math.min(...numValues);
+        stats.max = Math.max(...numValues);
+        stats.mean = numValues.reduce((a, b) => a + b, 0) / numValues.length;
+        stats.median = getMedian(numValues);
+        stats.stdDev = getStdDev(numValues);
+      }
+    }
+
+    appState.columnStats[col] = stats;
   });
-
-  appState.columnStats = stats;
 }
 
-// ========= CLEANING ACTIONS =========
+// ========= DATA OVERVIEW =========
+function transitionToDataOverview() {
+  document.getElementById("welcomeScreen").style.display = "none";
+  document.getElementById("uploadArea").style.display = "none";
+  const overview = document.getElementById("dataOverview");
+  overview.style.display = "block";
+  updateDashboardOverview();
+
+  const progressDiv = document.getElementById("uploadProgress");
+  if (progressDiv) progressDiv.style.display = "none";
+
+  generateDataQuality();
+  generateFilters();
+  initializeVisualizations();
+  renderQuickInsights();
+
+  showToast("File uploaded successfully!", "success");
+}
+
+function updateDashboardOverview() {
+  const { fileName, fileSize, originalData } = appState;
+  const rows = originalData.length;
+  const cols = rows > 0 ? Object.keys(originalData[0]).length : 0;
+
+  document.getElementById("statFileName").textContent = fileName || "-";
+  document.getElementById("statRows").textContent = rows.toLocaleString();
+  document.getElementById("statColumns").textContent = cols.toLocaleString();
+  document.getElementById("statSize").textContent = formatFileSize(fileSize);
+
+  displayDataPreview(originalData);
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+}
+
+function displayDataPreview(rows) {
+  const table = document.getElementById("dataPreviewTable");
+  if (!table) return;
+
+  if (!rows || rows.length === 0) {
+    table.innerHTML = "<tr><td>No data to display</td></tr>";
+    return;
+  }
+
+  const columns = Object.keys(rows[0]);
+  let html = "<thead><tr>";
+  columns.forEach(col => { html += `<th>${escapeHtml(col)}</th>`; });
+  html += "</tr></thead><tbody>";
+
+  rows.slice(0, 50).forEach(row => {
+    html += "<tr>";
+    columns.forEach(col => { html += `<td>${escapeHtml(row[col])}</td>`; });
+    html += "</tr>";
+  });
+  html += "</tbody>";
+  table.innerHTML = html;
+}
+
+function escapeHtml(value) {
+  const div = document.createElement("div");
+  div.textContent = value === null || value === undefined ? "" : String(value);
+  return div.innerHTML;
+}
+
+// ========= DATA HELPERS =========
+function activeData() {
+  return appState.filteredData.length > 0 ? appState.filteredData : appState.cleanedData;
+}
+
+function findDuplicates(data) {
+  const seen = new Set();
+  let duplicates = 0;
+  data.forEach(row => {
+    const key = JSON.stringify(row);
+    if (seen.has(key)) duplicates++;
+    seen.add(key);
+  });
+  return duplicates;
+}
+
+function detectOutliersWithDetails(data) {
+  const outliers = {};
+  const numericCols = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "numeric");
+
+  numericCols.forEach(col => {
+    const values = data.map(row => parseFloat(row[col])).filter(v => !isNaN(v));
+    if (values.length < 4) return;
+
+    const sorted = [...values].sort((a, b) => a - b);
+    const q1 = sorted[Math.floor(sorted.length * 0.25)];
+    const q3 = sorted[Math.floor(sorted.length * 0.75)];
+    const iqr = q3 - q1;
+    const lower = q1 - 1.5 * iqr;
+    const upper = q3 + 1.5 * iqr;
+
+    const outlierValues = values.filter(v => v < lower || v > upper);
+    if (outlierValues.length > 0) outliers[col] = outlierValues;
+  });
+
+  return outliers;
+}
+
+// ========= DATA QUALITY & CLEANING =========
+function generateDataQuality() {
+  const container = document.getElementById("qualityContainer");
+  if (!container || !appState.isDataLoaded) return;
+
+  const data = appState.cleanedData;
+  if (!data || data.length === 0) {
+    container.innerHTML = "<div class=\"card quality-block\"><p>No data loaded.</p></div>";
+    return;
+  }
+
+  const columns = Object.keys(data[0]);
+  let missingCells = 0;
+  const missingByColumn = [];
+  columns.forEach(col => {
+    const missing = data.filter(row => row[col] === "" || row[col] === null || row[col] === undefined).length;
+    missingCells += missing;
+    if (missing > 0) missingByColumn.push({ column: col, count: missing, pct: ((missing / data.length) * 100).toFixed(1) });
+  });
+
+  const duplicates = findDuplicates(data);
+  const outliers = detectOutliersWithDetails(data);
+  const totalCells = data.length * columns.length;
+  const completeness = totalCells > 0 ? (((totalCells - missingCells) / totalCells) * 100).toFixed(1) : "100.0";
+
+  let html = `
+    <div class="card quality-block">
+      <h3>Overview</h3>
+      <div class="quality-summary-row">
+        <div class="quality-summary-item"><div class="qty">${data.length.toLocaleString()}</div><div class="lbl">Rows</div></div>
+        <div class="quality-summary-item"><div class="qty">${completeness}%</div><div class="lbl">Completeness</div></div>
+        <div class="quality-summary-item"><div class="qty">${duplicates}</div><div class="lbl">Duplicate rows</div></div>
+        <div class="quality-summary-item"><div class="qty">${Object.values(outliers).reduce((a, v) => a + v.length, 0)}</div><div class="lbl">Outlier values</div></div>
+      </div>
+    </div>
+
+    <div class="card quality-block">
+      <h3>Cleaning Actions</h3>
+      <div class="cleaning-buttons">
+        <button class="btn btn-primary" onclick="removeDuplicates()">Remove Duplicates (${appState.cleaningActions.removedDuplicates})</button>
+        <button class="btn btn-primary" onclick="fillMissing()">Fill Missing Values (${appState.cleaningActions.filledMissing})</button>
+        <button class="btn btn-primary" onclick="removeOutliers()">Remove Outliers (${appState.cleaningActions.removedOutliers})</button>
+        <button class="btn btn-secondary" onclick="undoLastCleaning()" ${appState.cleaningActions.undoStack.length === 0 ? "disabled" : ""}>↺ Undo Last Action</button>
+      </div>
+  `;
+
+  if (appState.cleaningActions.history.length > 0) {
+    html += `<ul class="cleaning-history-list">${appState.cleaningActions.history.slice().reverse().map(h => `<li>${escapeHtml(h)}</li>`).join("")}</ul>`;
+  } else {
+    html += `<p>No cleaning actions yet.</p>`;
+  }
+  html += `</div>`;
+
+  if (missingByColumn.length > 0) {
+    html += `
+      <div class="card quality-block">
+        <h3>Missing Values</h3>
+        <div class="table-container" style="max-height: 300px;">
+          <table class="data-table">
+            <thead><tr><th>Column</th><th>Count</th><th>Percentage</th></tr></thead>
+            <tbody>${missingByColumn.map(m => `<tr><td>${escapeHtml(m.column)}</td><td>${m.count}</td><td>${m.pct}%</td></tr>`).join("")}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  if (Object.keys(outliers).length > 0) {
+    html += `
+      <div class="card quality-block">
+        <h3>Outliers (IQR method)</h3>
+        <div class="table-container" style="max-height: 300px;">
+          <table class="data-table">
+            <thead><tr><th>Column</th><th>Outlier Count</th></tr></thead>
+            <tbody>${Object.keys(outliers).map(col => `<tr><td>${escapeHtml(col)}</td><td>${outliers[col].length}</td></tr>`).join("")}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+}
+
 function pushUndoSnapshot() {
   appState.cleaningActions.undoStack.push({
     cleanedData: JSON.parse(JSON.stringify(appState.cleanedData)),
@@ -382,23 +563,18 @@ function removeDuplicates() {
   pushUndoSnapshot();
   const before = appState.cleanedData.length;
   const seen = new Set();
-  const result = [];
-
-  appState.cleanedData.forEach(row => {
+  appState.cleanedData = appState.cleanedData.filter(row => {
     const key = JSON.stringify(row);
-    if (!seen.has(key)) {
-      seen.add(key);
-      result.push(row);
-    }
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 
-  const removed = before - result.length;
-  appState.cleanedData = result;
+  const removed = before - appState.cleanedData.length;
   appState.cleaningActions.removedDuplicates += removed;
   appState.cleaningActions.history.push(`Removed ${removed} duplicate rows.`);
-  renderCleaningHistory();
-  generateDataQuality();
   showToast(`Removed ${removed} duplicate rows.`, "success");
+  generateDataQuality();
 }
 
 function fillMissing() {
@@ -407,36 +583,33 @@ function fillMissing() {
   pushUndoSnapshot();
   let filled = 0;
 
-  const numericMeans = {};
-  Object.keys(appState.columnTypes).forEach(col => {
+  Object.keys(data[0]).forEach(col => {
     if (appState.columnTypes[col] === "numeric") {
-      const vals = data
-        .map(r => parseFloat(r[col]))
-        .filter(v => !isNaN(v));
-      if (vals.length > 0) {
-        numericMeans[col] = vals.reduce((a, b) => a + b, 0) / vals.length;
-      }
-    }
-  });
-
-  data.forEach(row => {
-    Object.keys(row).forEach(col => {
-      if (row[col] === "" || row[col] === null || row[col] === undefined) {
-        if (appState.columnTypes[col] === "numeric" && !isNaN(numericMeans[col])) {
-          row[col] = numericMeans[col];
-        } else {
-          row[col] = "N/A";
+      const vals = data.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
+      if (vals.length === 0) return;
+      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+      data.forEach(row => {
+        if (row[col] === "" || row[col] === null || row[col] === undefined) {
+          row[col] = mean.toFixed(2);
+          filled++;
         }
-        filled++;
-      }
-    });
+      });
+    } else {
+      const vals = data.map(r => r[col]).filter(v => v !== "" && v !== null && v !== undefined);
+      const mode = vals.length > 0 ? vals[0] : "N/A";
+      data.forEach(row => {
+        if (row[col] === "" || row[col] === null || row[col] === undefined) {
+          row[col] = mode;
+          filled++;
+        }
+      });
+    }
   });
 
   appState.cleaningActions.filledMissing += filled;
   appState.cleaningActions.history.push(`Filled ${filled} missing values.`);
-  renderCleaningHistory();
-  generateDataQuality();
   showToast(`Filled ${filled} missing values.`, "success");
+  generateDataQuality();
 }
 
 function removeOutliers() {
@@ -444,35 +617,32 @@ function removeOutliers() {
   if (!data || data.length === 0) return;
   pushUndoSnapshot();
 
-  let removedTotal = 0;
-  const keepRows = [];
+  const outliers = detectOutliersWithDetails(data);
+  const outlierRowIndexes = new Set();
 
-  data.forEach(row => {
-    let isOutlier = false;
-    Object.keys(appState.columnStats).forEach(col => {
-      const stats = appState.columnStats[col];
+  Object.keys(outliers).forEach(col => {
+    const values = data.map(row => parseFloat(row[col])).filter(v => !isNaN(v));
+    const sorted = [...values].sort((a, b) => a - b);
+    const q1 = sorted[Math.floor(sorted.length * 0.25)];
+    const q3 = sorted[Math.floor(sorted.length * 0.75)];
+    const iqr = q3 - q1;
+    const lower = q1 - 1.5 * iqr;
+    const upper = q3 + 1.5 * iqr;
+
+    data.forEach((row, idx) => {
       const val = parseFloat(row[col]);
-      if (isNaN(val)) return;
-      const iqr = stats.q3 - stats.q1;
-      const lower = stats.q1 - 1.5 * iqr;
-      const upper = stats.q3 + 1.5 * iqr;
-      if (val < lower || val > upper) {
-        isOutlier = true;
-      }
+      if (!isNaN(val) && (val < lower || val > upper)) outlierRowIndexes.add(idx);
     });
-    if (!isOutlier) {
-      keepRows.push(row);
-    } else {
-      removedTotal++;
-    }
   });
 
-  appState.cleanedData = keepRows;
-  appState.cleaningActions.removedOutliers += removedTotal;
-  appState.cleaningActions.history.push(`Removed ${removedTotal} outlier rows.`);
-  renderCleaningHistory();
+  const before = data.length;
+  appState.cleanedData = data.filter((row, idx) => !outlierRowIndexes.has(idx));
+  const removed = before - appState.cleanedData.length;
+
+  appState.cleaningActions.removedOutliers += removed;
+  appState.cleaningActions.history.push(`Removed ${removed} outlier rows.`);
+  showToast(`Removed ${removed} outlier rows.`, "success");
   generateDataQuality();
-  showToast(`Removed ${removedTotal} outlier rows.`, "success");
 }
 
 function undoLastCleaning() {
@@ -486,241 +656,482 @@ function undoLastCleaning() {
   appState.cleaningActions.removedDuplicates = snapshot.removedDuplicates;
   appState.cleaningActions.filledMissing = snapshot.filledMissing;
   appState.cleaningActions.removedOutliers = snapshot.removedOutliers;
-  renderCleaningHistory();
-  generateDataQuality();
   showToast("Last cleaning action undone.", "info");
+  generateDataQuality();
 }
 
-function renderCleaningHistory() {
-  const panel = document.getElementById("cleaningHistoryPanel");
-  if (!panel) return;
-  panel.innerHTML = "";
-  if (appState.cleaningActions.history.length === 0) {
-    panel.textContent = "No cleaning actions yet.";
-    return;
-  }
-  appState.cleaningActions.history.slice().reverse().forEach(entry => {
-    const div = document.createElement("div");
-    div.className = "log-entry";
-    div.textContent = entry;
-    panel.appendChild(div);
-  });
-}
+// ========= FILTERS =========
+function generateFilters() {
+  const panel = document.getElementById("filtersPanel");
+  const container = document.getElementById("filtersContainer2");
+  if (!panel || !container) return;
 
-function generateDataQuality() {
-  const container = document.getElementById("dataQualityContainer");
-  if (!container) return;
   const data = appState.cleanedData;
-  if (!data || data.length === 0) {
-    container.textContent = "No data loaded.";
+  const categoricalColumns = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "categorical");
+
+  if (categoricalColumns.length === 0) {
+    panel.style.display = "none";
+    container.innerHTML = "";
     return;
   }
 
-  const rows = data.length;
-  const cols = Object.keys(data[0]);
-  let missing = 0;
+  panel.style.display = "block";
+  container.innerHTML = categoricalColumns.map(col => {
+    const uniqueValues = [...new Set(data.map(row => row[col]).filter(v => v !== "" && v !== null && v !== undefined))].sort();
+    return `
+      <div class="control-group">
+        <label>${escapeHtml(col)}</label>
+        <select id="filter-${cssEscape(col)}" class="chart-select">
+          <option value="">All</option>
+          ${uniqueValues.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("")}
+        </select>
+      </div>
+    `;
+  }).join("");
+}
 
-  data.forEach(row => {
-    cols.forEach(col => {
-      const v = row[col];
-      if (v === "" || v === null || v === undefined) missing++;
-    });
+function cssEscape(id) {
+  return String(id).replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+function applyFiltersClick() {
+  const categoricalColumns = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "categorical");
+  appState.activeFilters = {};
+
+  categoricalColumns.forEach(col => {
+    const select = document.getElementById(`filter-${cssEscape(col)}`);
+    if (select && select.value) appState.activeFilters[col] = select.value;
   });
 
-  const totalCells = rows * cols.length;
-  const completeness = ((totalCells - missing) / totalCells * 100).toFixed(1);
+  if (Object.keys(appState.activeFilters).length === 0) {
+    appState.filteredData = [];
+    showToast("No filters selected — showing cleaned data.", "info");
+  } else {
+    appState.filteredData = appState.cleanedData.filter(row =>
+      Object.keys(appState.activeFilters).every(col => row[col] === appState.activeFilters[col])
+    );
+    showToast(`Filters applied — ${appState.filteredData.length.toLocaleString()} rows match.`, "success");
+  }
 
-  container.innerHTML = `
-    <p><strong>Rows:</strong> ${rows.toLocaleString()}</p>
-    <p><strong>Columns:</strong> ${cols.length}</p>
-    <p><strong>Missing cells:</strong> ${missing.toLocaleString()}</p>
-    <p><strong>Completeness:</strong> ${completeness}%</p>
-  `;
+  initializeVisualizations();
+}
+
+function clearAllFilters() {
+  document.querySelectorAll("#filtersContainer2 select").forEach(sel => { sel.value = ""; });
+  appState.activeFilters = {};
+  appState.filteredData = [];
+  showToast("Filters cleared.", "info");
+  initializeVisualizations();
+}
+
+function toggleFiltersPanel() {
+  const content = document.getElementById("filtersContent");
+  if (!content) return;
+  content.style.display = content.style.display === "none" ? "block" : "none";
 }
 
 // ========= VISUALIZATIONS =========
 function initializeVisualizations() {
-  const data = appState.cleanedData;
-  if (!data || data.length === 0) return;
-  const columns = Object.keys(data[0]);
+  if (!appState.isDataLoaded || appState.cleanedData.length === 0) return;
 
-  const xSel = document.getElementById("vizXColumn");
-  const ySel = document.getElementById("vizYColumn");
-  if (!xSel || !ySel) return;
+  const columns = Object.keys(appState.cleanedData[0]);
+  const categoricalCols = columns.filter(c => appState.columnTypes[c] === "categorical");
+  const numericCols = columns.filter(c => appState.columnTypes[c] === "numeric");
 
-  xSel.innerHTML = "";
-  ySel.innerHTML = "";
+  const noDataMsg = document.getElementById("noVisualizationsMessage");
+  const hasAnyCols = columns.length > 0;
+  if (noDataMsg) noDataMsg.style.display = hasAnyCols ? "none" : "block";
 
-  columns.forEach(col => {
-    const optX = document.createElement("option");
-    optX.value = col;
-    optX.textContent = col;
-    xSel.appendChild(optX);
+  const categoricalSection = document.getElementById("categoricalSection");
+  const numericSection = document.getElementById("numericSection");
+  const pieSection = document.getElementById("pieSection");
+  const comparisonSection = document.getElementById("comparisonSection");
 
-    const optY = document.createElement("option");
-    optY.value = col;
-    optY.textContent = col;
-    ySel.appendChild(optY);
-  });
+  if (categoricalSection) categoricalSection.style.display = categoricalCols.length > 0 ? "block" : "none";
+  if (pieSection) pieSection.style.display = categoricalCols.length > 0 ? "block" : "none";
+  if (numericSection) numericSection.style.display = numericCols.length > 0 ? "block" : "none";
+  if (comparisonSection) comparisonSection.style.display = columns.length >= 2 ? "block" : "none";
 
-  xSel.value = columns[0];
-  if (columns.length > 1) {
-    ySel.value = columns[1];
+  fillSelect("categoricalColumnSelect", categoricalCols, "Choose a column...");
+  fillSelect("pieColumnSelect", categoricalCols, "Choose a column...");
+  fillSelect("numericColumnSelect", numericCols, "Choose a column...");
+  fillSelect("xAxisSelect", columns, "Choose a column...");
+  fillSelect("yAxisSelect", columns, "Choose a column...");
+  fillSelect("groupBySelect", categoricalCols, "No grouping", true);
+
+  if (categoricalCols.length > 0) renderCategoricalChart(categoricalCols[0]);
+  if (numericCols.length > 0) renderNumericChart(numericCols[0]);
+  if (categoricalCols.length > 0) renderPieChartViz(categoricalCols[0]);
+  if (columns.length >= 2) {
+    document.getElementById("xAxisSelect").value = columns[0];
+    document.getElementById("yAxisSelect").value = numericCols[0] || columns[1];
+    renderComparisonChart();
   }
 }
 
-function renderMainChart() {
-  const data = appState.cleanedData;
-  if (!data || data.length === 0) return;
+function fillSelect(selectId, values, placeholder, keepPlaceholderValue) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>` +
+    values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+  if (!keepPlaceholderValue && values.includes(current)) select.value = current;
+}
 
-  const xCol = document.getElementById("vizXColumn").value;
-  const yCol = document.getElementById("vizYColumn").value;
-  const type = document.getElementById("vizChartType").value;
+const CHART_COLORS = ["#B3D9FF", "#FFB3D9", "#B3FFD9", "#FFFAB3", "#D9B3FF", "#FFD9B3", "#7c3aed", "#2563eb", "#f59e0b", "#10b981"];
 
-  const ctx = document.getElementById("mainChart").getContext("2d");
-  if (appState.chartInstances.main) {
-    appState.chartInstances.main.destroy();
+function ensureCanvas(containerId) {
+  const container = document.getElementById(containerId);
+  if (appState.chartInstances[containerId]) {
+    appState.chartInstances[containerId].destroy();
+    delete appState.chartInstances[containerId];
   }
+  container.innerHTML = `<canvas id="${containerId}Canvas"></canvas>`;
+  return document.getElementById(`${containerId}Canvas`).getContext("2d");
+}
 
-  let chartConfig;
+function renderCategoricalChart(columnName) {
+  if (!columnName) return;
+  document.getElementById("categoricalColumnSelect").value = columnName;
+  const data = activeData();
+  const ctx = ensureCanvas("categoricalChart");
 
-  if (type === "scatter") {
-    const points = data.map(r => ({
-      x: parseFloat(r[xCol]),
-      y: parseFloat(r[yCol])
-    })).filter(p => !isNaN(p.x) && !isNaN(p.y));
+  const frequencies = {};
+  data.forEach(row => {
+    const value = String(row[columnName] ?? "N/A");
+    frequencies[value] = (frequencies[value] || 0) + 1;
+  });
 
-    chartConfig = {
-      type: "scatter",
-      data: {
-        datasets: [{
-          label: `${yCol} vs ${xCol}`,
-          data: points
-        }]
-      }
-    };
-  } else if (type === "line") {
-    const sorted = [...data].sort((a, b) => String(a[xCol]).localeCompare(String(b[xCol])));
-    const labels = sorted.map(r => String(r[xCol]));
-    const values = sorted.map(r => parseFloat(r[yCol]) || 0);
+  const labels = Object.keys(frequencies).slice(0, 30);
 
-    chartConfig = {
-      type: "line",
-      data: {
-        labels,
-        datasets: [{
-          label: yCol,
-          data: values
-        }]
-      }
-    };
-  } else if (type === "pie") {
-    const counts = {};
-    data.forEach(r => {
-      const key = String(r[xCol]);
-      counts[key] = (counts[key] || 0) + 1;
-    });
-    const labels = Object.keys(counts).slice(0, 12);
-    const values = labels.map(l => counts[l]);
-
-    chartConfig = {
-      type: "pie",
-      data: {
-        labels,
-        datasets: [{
-          data: values
-        }]
-      }
-    };
-  } else { // bar
-    const labels = data.map(r => String(r[xCol])).slice(0, 40);
-    const values = data.map(r => parseFloat(r[yCol]) || 0).slice(0, 40);
-
-    chartConfig = {
-      type: "bar",
-      data: {
-        labels,
-        datasets: [{
-          label: yCol,
-          data: values
-        }]
-      }
-    };
-  }
-
-  appState.chartInstances.main = new Chart(ctx, {
-    ...chartConfig,
+  appState.chartInstances.categoricalChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Count",
+        data: labels.map(l => frequencies[l]),
+        backgroundColor: CHART_COLORS,
+        borderColor: "#1A1A1A",
+        borderWidth: 2
+      }]
+    },
     options: {
       responsive: true,
-      maintainAspectRatio: false
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
     }
   });
 }
 
-// ========= AI INSIGHTS (via backend) =========
-async function generateInsights() {
-  if (!appState.isDataLoaded || !appState.originalData || appState.originalData.length === 0) return;
+function renderNumericChart(columnName) {
+  if (!columnName) return;
+  document.getElementById("numericColumnSelect").value = columnName;
+  const data = activeData();
+  const ctx = ensureCanvas("numericChart");
 
-  const data = appState.cleanedData;
-  const cols = Object.keys(data[0]);
-  const numericCols = cols.filter(c => appState.columnTypes[c] === "numeric");
+  const values = data.map(row => parseFloat(row[columnName])).filter(v => !isNaN(v));
+  if (values.length === 0) return;
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const binCount = Math.max(1, Math.min(20, Math.ceil(Math.sqrt(values.length))));
+  const binSize = (max - min) / binCount || 1;
+
+  const bins = new Array(binCount).fill(0);
+  const binLabels = [];
+  for (let i = 0; i < binCount; i++) {
+    const start = min + i * binSize;
+    binLabels.push(start.toFixed(1));
+  }
+  values.forEach(v => {
+    let idx = Math.floor((v - min) / binSize);
+    if (idx >= binCount) idx = binCount - 1;
+    if (idx < 0) idx = 0;
+    bins[idx]++;
+  });
+
+  appState.chartInstances.numericChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: binLabels,
+      datasets: [{
+        label: "Frequency",
+        data: bins,
+        backgroundColor: "rgba(16, 185, 129, 0.6)",
+        borderColor: "#10b981",
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false } }, y: { beginAtZero: true } }
+    }
+  });
+}
+
+function renderPieChartViz(columnName) {
+  if (!columnName) return;
+  document.getElementById("pieColumnSelect").value = columnName;
+  const data = activeData();
+  const ctx = ensureCanvas("pieChart");
+
+  const frequencies = {};
+  data.forEach(row => {
+    const value = String(row[columnName] ?? "N/A");
+    frequencies[value] = (frequencies[value] || 0) + 1;
+  });
+
+  const labels = Object.keys(frequencies).slice(0, 12);
+
+  appState.chartInstances.pieChart = new Chart(ctx, {
+    type: "pie",
+    data: {
+      labels,
+      datasets: [{
+        data: labels.map(l => frequencies[l]),
+        backgroundColor: CHART_COLORS,
+        borderColor: "#fff",
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: "bottom" } }
+    }
+  });
+}
+
+function partitionByGroup(data, groupCol) {
+  if (!groupCol) return { "": data };
+  const groups = {};
+  data.forEach(row => {
+    const key = String(row[groupCol] ?? "N/A");
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(row);
+  });
+  const keys = Object.keys(groups);
+  if (keys.length > 8) {
+    const kept = keys.slice(0, 7);
+    const merged = { "Other": [] };
+    keys.slice(7).forEach(k => merged.Other.push(...groups[k]));
+    const result = {};
+    kept.forEach(k => { result[k] = groups[k]; });
+    result.Other = merged.Other;
+    return result;
+  }
+  return groups;
+}
+
+function renderComparisonChart() {
+  const chartType = document.getElementById("comparisonChartType")?.value || "scatter";
+  const xColumn = document.getElementById("xAxisSelect")?.value;
+  const yColumn = document.getElementById("yAxisSelect")?.value;
+  const groupBy = document.getElementById("groupBySelect")?.value;
+  if (!xColumn || !yColumn) return;
+
+  const data = activeData();
+  const ctx = ensureCanvas("comparisonChart");
+  const groups = partitionByGroup(data, groupBy);
+  const groupKeys = Object.keys(groups);
+
+  let chartConfig;
+
+  if (chartType === "scatter") {
+    chartConfig = {
+      type: "scatter",
+      data: {
+        datasets: groupKeys.map((key, i) => ({
+          label: groupBy ? key : `${yColumn} vs ${xColumn}`,
+          data: groups[key].map(row => ({ x: parseFloat(row[xColumn]), y: parseFloat(row[yColumn]) }))
+            .filter(p => !isNaN(p.x) && !isNaN(p.y)).slice(0, 500),
+          backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+          borderColor: "#1A1A1A",
+          pointRadius: 4
+        }))
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: groupKeys.length > 1 || !!groupBy } },
+        scales: { x: { grid: { color: "#e5e5e5" } }, y: { grid: { color: "#e5e5e5" } } }
+      }
+    };
+  } else if (chartType === "line") {
+    const allLabels = [...new Set(data.map(r => String(r[xColumn])))].sort().slice(0, 50);
+    chartConfig = {
+      type: "line",
+      data: {
+        labels: allLabels,
+        datasets: groupKeys.map((key, i) => {
+          const byX = {};
+          groups[key].forEach(r => { byX[String(r[xColumn])] = parseFloat(r[yColumn]) || 0; });
+          return {
+            label: groupBy ? key : yColumn,
+            data: allLabels.map(l => byX[l] ?? null),
+            borderColor: CHART_COLORS[i % CHART_COLORS.length],
+            backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+            borderWidth: 2,
+            fill: false,
+            tension: 0.3,
+            spanGaps: true
+          };
+        })
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: groupKeys.length > 1 || !!groupBy } },
+        scales: { y: { beginAtZero: false } }
+      }
+    };
+  } else {
+    const allLabels = [...new Set(data.map(r => String(r[xColumn])))].slice(0, 30);
+    chartConfig = {
+      type: "bar",
+      data: {
+        labels: allLabels,
+        datasets: groupKeys.map((key, i) => {
+          const agg = {};
+          groups[key].forEach(row => {
+            const xVal = String(row[xColumn]);
+            const yVal = parseFloat(row[yColumn]);
+            if (isNaN(yVal)) return;
+            if (!agg[xVal]) agg[xVal] = { sum: 0, count: 0 };
+            agg[xVal].sum += yVal;
+            agg[xVal].count++;
+          });
+          return {
+            label: groupBy ? key : `Average ${yColumn}`,
+            data: allLabels.map(l => agg[l] ? agg[l].sum / agg[l].count : 0),
+            backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+            borderColor: "#1A1A1A",
+            borderWidth: 2
+          };
+        })
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: groupKeys.length > 1 || !!groupBy } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true } }
+      }
+    };
+  }
+
+  appState.chartInstances.comparisonChart = new Chart(ctx, chartConfig);
+}
+
+function downloadChartImage(containerId) {
+  const chart = appState.chartInstances[containerId];
+  if (!chart) {
+    showToast("Render a chart first.", "warning");
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = chart.toBase64Image();
+  a.download = `${containerId}.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// ========= AI INSIGHTS =========
+function renderQuickInsights() {
+  if (!appState.isDataLoaded) return;
+  const data = activeData();
+  const columns = Object.keys(data[0] || {});
+  const numericCols = columns.filter(c => appState.columnTypes[c] === "numeric");
   const insights = [];
 
-  // local quick tiles
   insights.push({
     icon: "📊",
-    title: "Dataset footprint",
-    description: `${data.length.toLocaleString()} rows × ${cols.length} columns`,
+    title: "Dataset Overview",
+    description: `${data.length.toLocaleString()} records × ${columns.length} columns`,
     type: "info"
   });
 
-  let missing = 0;
-  data.forEach(row => {
-    cols.forEach(col => {
-      const v = row[col];
-      if (v === "" || v === null || v === undefined) missing++;
-    });
+  let missingCells = 0;
+  columns.forEach(col => {
+    missingCells += data.filter(row => row[col] === "" || row[col] === null || row[col] === undefined).length;
   });
-  const completeness = (((data.length * cols.length) - missing) / (data.length * cols.length) * 100).toFixed(1);
+  const totalCells = data.length * columns.length;
+  const completeness = totalCells > 0 ? ((totalCells - missingCells) / totalCells * 100).toFixed(1) : "100.0";
   insights.push({
     icon: completeness > 95 ? "✅" : "⚠️",
-    title: "Data completeness",
-    description: `${completeness}% cells populated`,
+    title: "Data Completeness",
+    description: `${completeness}% complete`,
     type: completeness > 95 ? "success" : "warning"
   });
 
   if (numericCols.length > 0) {
     const col = numericCols[0];
     const s = appState.columnStats[col];
-    if (s) {
+    if (s && s.mean !== undefined) {
       insights.push({
         icon: "📈",
-        title: `${col} stats`,
+        title: `${col} Stats`,
         description: `Mean: ${s.mean.toFixed(2)}, Range: ${s.min.toFixed(2)} – ${s.max.toFixed(2)}`,
         type: "info"
       });
     }
   }
 
-  renderQuickInsights(insights);
+  const duplicates = findDuplicates(data);
+  insights.push({
+    icon: duplicates > 0 ? "⚠️" : "✅",
+    title: "Duplicate Rows",
+    description: duplicates > 0 ? `${duplicates} duplicate rows found` : "No duplicates detected",
+    type: duplicates > 0 ? "warning" : "success"
+  });
 
-  // call backend Gemini
+  appState.quickInsights = insights;
+
+  const grid = document.getElementById("quickInsightsGrid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  insights.forEach(ins => {
+    const card = document.createElement("div");
+    card.className = `insight-card ${ins.type}`;
+    card.innerHTML = `
+      <div class="insight-icon">${ins.icon}</div>
+      <h4>${escapeHtml(ins.title)}</h4>
+      <p>${escapeHtml(ins.description)}</p>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+async function generateInsightsDocument() {
+  if (!appState.isDataLoaded) {
+    showToast("Upload a dataset first.", "warning");
+    return;
+  }
+
+  const btn = document.getElementById("generateInsightsBtn");
   const promptInput = document.getElementById("insightsRequest");
   const userPrompt = promptInput ? promptInput.value.trim() : "";
-  showToast("Sending sample to backend for Gemini insights…", "info");
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Generating...";
+  }
 
   try {
+    const data = activeData();
     const payload = {
-      question: userPrompt || "Give 3–5 business‑relevant insights and risks for this dataset.",
-      columns: cols,
+      question: userPrompt || "Give 3-5 business-relevant insights and risks for this dataset.",
+      columns: Object.keys(data[0] || {}),
       sample_rows: data.slice(0, 200)
     };
 
     const res = await fetch(CONFIG.API.BASE_URL + CONFIG.API.INSIGHTS_ENDPOINT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
@@ -735,65 +1146,79 @@ async function generateInsights() {
     appState.currentInsights = json;
 
     const doc = document.getElementById("insightsDocumentContent");
-    if (doc) {
-      doc.textContent = json.insights || "(backend returned no insights text)";
-    }
+    if (doc) doc.textContent = json.insights || "(backend returned no insights text)";
+
+    const dateEl = document.getElementById("insightsGeneratedDate");
+    if (dateEl) dateEl.textContent = `Generated ${new Date().toLocaleString()}`;
+
+    const card = document.getElementById("generatedInsights");
+    if (card) card.style.display = "block";
 
     showToast("AI insights generated.", "success");
   } catch (err) {
     console.error(err);
     showToast("Network error talking to backend.", "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "✓ Generate Insights";
+    }
   }
-}
-
-function renderQuickInsights(items) {
-  const grid = document.getElementById("quickInsightsGrid");
-  if (!grid) return;
-  grid.innerHTML = "";
-  items.forEach(ins => {
-    const card = document.createElement("div");
-    card.className = "insight-card";
-    card.innerHTML = `
-      <div class="insight-icon">${ins.icon}</div>
-      <div class="insight-title">${ins.title}</div>
-      <div class="insight-description">${ins.description}</div>
-    `;
-    grid.appendChild(card);
-  });
 }
 
 // ========= EXPORTS =========
-function exportCleanedData() {
-  const data = appState.cleanedData;
+function exportFilteredData() {
+  const data = activeData();
   if (!data || data.length === 0) {
-    showToast("No cleaned data to export.", "warning");
+    showToast("No data to export.", "warning");
     return;
   }
-  const csv = convertToCSV(data);
-  downloadFile(csv, "cleaned_data.csv", "text/csv");
-  showToast("Cleaned data exported.", "success");
+  downloadFile(convertToCSV(data), "datavizard_export.csv", "text/csv");
+  showToast("Data exported.", "success");
+}
+
+function exportSummary() {
+  if (!appState.isDataLoaded) {
+    showToast("Upload a dataset first.", "warning");
+    return;
+  }
+  const data = appState.cleanedData;
+  const columns = Object.keys(data[0] || {});
+  const lines = [];
+  lines.push("DataVizard - Dataset Summary");
+  lines.push(`Generated: ${new Date().toLocaleString()}`);
+  lines.push("");
+  lines.push(`File: ${appState.fileName}`);
+  lines.push(`Rows: ${data.length}`);
+  lines.push(`Columns: ${columns.length}`);
+  lines.push("");
+  lines.push("Column types:");
+  columns.forEach(col => lines.push(`  - ${col}: ${appState.columnTypes[col] || "unknown"}`));
+  lines.push("");
+  lines.push("Cleaning actions:");
+  if (appState.cleaningActions.history.length === 0) {
+    lines.push("  (none)");
+  } else {
+    appState.cleaningActions.history.forEach(h => lines.push(`  - ${h}`));
+  }
+
+  downloadFile(lines.join("\n"), "datavizard_summary.txt", "text/plain");
+  showToast("Summary exported.", "success");
 }
 
 function exportInsights() {
-  const insights = appState.currentInsights;
-  if (!insights) {
-    showToast("Generate AI insights first.", "warning");
+  if (!appState.isDataLoaded) {
+    showToast("Upload a dataset first.", "warning");
     return;
   }
-  const content = `DataVizard – AI Insights\n\n${insights.insights || ""}\n\nMetadata:\nRows analysed: ${insights.row_count}\nColumns: ${insights.column_count}`;
-  downloadFile(content, "insights_report.txt", "text/plain");
-  showToast("Insights report exported.", "success");
-}
-
-function exportCleaningLog() {
-  const history = appState.cleaningActions.history || [];
-  if (history.length === 0) {
-    showToast("No cleaning actions logged.", "warning");
-    return;
-  }
-  const content = history.join("\n");
-  downloadFile(content, "cleaning_log.txt", "text/plain");
-  showToast("Cleaning log exported.", "success");
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    fileName: appState.fileName,
+    quickInsights: appState.quickInsights,
+    aiInsights: appState.currentInsights || null
+  };
+  downloadFile(JSON.stringify(payload, null, 2), "datavizard_insights.json", "application/json");
+  showToast("Insights exported.", "success");
 }
 
 function convertToCSV(data) {
@@ -824,26 +1249,15 @@ function downloadFile(content, fileName, mimeType) {
 
 // ========= TOASTS =========
 function showToast(message, type = "info") {
-  const colors = {
-    success: "#10b981",
-    error: "#ef4444",
-    warning: "#f59e0b",
-    info: "#3b82f6"
-  };
   const toast = document.createElement("div");
-  toast.className = "toast";
-  toast.style.background = colors[type] || colors.info;
-  toast.style.color = "white";
-  toast.style.padding = "10px 16px";
-  toast.style.borderRadius = "999px";
-  toast.style.border = "2px solid #111827";
-  toast.style.boxShadow = "3px 3px 0 #111827";
-  toast.style.fontSize = "13px";
-  toast.style.fontWeight = "600";
+  toast.className = `toast ${type}`;
   toast.textContent = message;
-
   document.body.appendChild(toast);
+
+  requestAnimationFrame(() => toast.classList.add("show"));
+
   setTimeout(() => {
-    toast.remove();
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 300);
   }, CONFIG.UI.TOAST_DURATION_MS || 4000);
 }
