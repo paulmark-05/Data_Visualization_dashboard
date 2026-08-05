@@ -808,6 +808,12 @@ body {
   padding: 20px;
   background: white;
   height: 300px;
+  /* Always its own white plotting surface regardless of theme (so
+     Chart.js's own default dark gridline/label colors stay legible
+     without per-chart theme config) - reset text color here so
+     children like the heatmap legend don't inherit the dark-mode
+     light text meant for surfaces that actually go dark. */
+  color: var(--dark-text);
 }
 
 /* ==================== VISUALIZATIONS: TWO-PANEL LAYOUT ====================
@@ -1443,9 +1449,13 @@ body {
 [data-theme="dark"] .overview-header h3,
 [data-theme="dark"] .dropzone-content h3,
 [data-theme="dark"] .dropzone-content p,
+[data-theme="dark"] .upload-icon,
 [data-theme="dark"] .no-data-message,
 [data-theme="dark"] .preview-row-count,
-[data-theme="dark"] .insights-document-content {
+[data-theme="dark"] .insights-document-content,
+[data-theme="dark"] .viz-section-header p,
+[data-theme="dark"] .insight-card h4,
+[data-theme="dark"] .insight-card p {
   color: #F0F0F0;
 }
 
