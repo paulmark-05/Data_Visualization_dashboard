@@ -4,6 +4,11 @@ let appState = {
   originalData: [],
   cleanedData: [],
   filteredData: [],
+  // Whether a filter is currently applied, tracked separately from
+  // filteredData.length - a filter that correctly matches zero rows
+  // must not be indistinguishable from "no filter applied" (which is
+  // what checking filteredData.length > 0 alone would do).
+  filtersActive: false,
   columnTypes: {},
   columnStats: {},
   fileName: "",
@@ -113,6 +118,7 @@ function loadSession() {
     appState.currentInsights = snapshot.currentInsights || null;
     appState.quickInsights = snapshot.quickInsights || [];
     appState.filteredData = [];
+    appState.filtersActive = false;
     appState.activeFilters = {};
     appState.numericFilterRanges = {};
     appState.isDataLoaded = true;
@@ -222,6 +228,7 @@ function resetUpload() {
   appState.originalData = [];
   appState.cleanedData = [];
   appState.filteredData = [];
+  appState.filtersActive = false;
   appState.isDataLoaded = false;
   appState.fileName = "";
   appState.fileSize = 0;
@@ -269,6 +276,11 @@ function processFile(file) {
 
   appState.fileName = file.name;
   appState.fileSize = file.size;
+  // Starting a new upload invalidates any in-progress multi-sheet
+  // picker flow from a previous, abandoned upload - otherwise a stale
+  // confirmSheetSelection() call could overwrite this new dataset
+  // with sheet data from the earlier, unrelated workbook.
+  appState.pendingWorkbook = null;
 
   const progressDiv = document.getElementById("uploadProgress");
   const progressText = document.getElementById("progressText");
@@ -359,6 +371,7 @@ function finalizeUpload(jsonData) {
   appState.originalData = jsonData;
   appState.cleanedData = JSON.parse(JSON.stringify(jsonData));
   appState.filteredData = [];
+  appState.filtersActive = false;
   appState.isDataLoaded = true;
   appState.activeFilters = {};
   appState.numericFilterRanges = {};
@@ -693,7 +706,7 @@ function escapeHtml(value) {
 
 // ========= DATA HELPERS =========
 function activeData() {
-  return appState.filteredData.length > 0 ? appState.filteredData : appState.cleanedData;
+  return appState.filtersActive ? appState.filteredData : appState.cleanedData;
 }
 
 function findDuplicates(data) {
@@ -846,6 +859,7 @@ function removeDuplicates() {
   appState.cleaningActions.removedDuplicates += removed;
   appState.cleaningActions.history.push(`Removed ${removed} duplicate rows.`);
   showToast(`Removed ${removed} duplicate rows.`, "success");
+  reapplyActiveFilters();
   generateDataQuality();
   saveSession();
 }
@@ -882,6 +896,7 @@ function fillMissing() {
   appState.cleaningActions.filledMissing += filled;
   appState.cleaningActions.history.push(`Filled ${filled} missing values.`);
   showToast(`Filled ${filled} missing values.`, "success");
+  reapplyActiveFilters();
   generateDataQuality();
   saveSession();
 }
@@ -919,6 +934,7 @@ function removeOutliers(column) {
     targetColumn ? `Removed ${removed} outlier rows (column: ${targetColumn}).` : `Removed ${removed} outlier rows.`
   );
   showToast(`Removed ${removed} outlier rows.`, "success");
+  reapplyActiveFilters();
   generateDataQuality();
   saveSession();
 }
@@ -935,6 +951,7 @@ function undoLastCleaning() {
   appState.cleaningActions.filledMissing = snapshot.filledMissing;
   appState.cleaningActions.removedOutliers = snapshot.removedOutliers;
   showToast("Last cleaning action undone.", "info");
+  reapplyActiveFilters();
   generateDataQuality();
   saveSession();
 }
@@ -971,7 +988,7 @@ function generateFilters() {
     return `
       <div class="control-group" data-filter-label="${escapeHtml(col.toLowerCase())}">
         <label title="${escapeHtml(col)}">${escapeHtml(col)}</label>
-        <select id="filter-${cssEscape(col)}" class="chart-select">
+        <select data-role="filter-select" data-column="${escapeHtml(col)}" class="chart-select">
           <option value="">All</option>
           ${uniqueValues.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("")}
         </select>
@@ -987,8 +1004,8 @@ function generateFilters() {
       <div class="control-group" data-filter-label="${escapeHtml(col.toLowerCase())}">
         <label title="${escapeHtml(col)}">${escapeHtml(col)}</label>
         <div style="display:flex; gap:6px;">
-          <input type="number" id="filter-min-${cssEscape(col)}" class="chart-select" placeholder="Min" step="any" aria-label="Minimum ${escapeHtml(col)}">
-          <input type="number" id="filter-max-${cssEscape(col)}" class="chart-select" placeholder="Max" step="any" aria-label="Maximum ${escapeHtml(col)}">
+          <input type="number" data-role="filter-min" data-column="${escapeHtml(col)}" class="chart-select" placeholder="Min" step="any" aria-label="Minimum ${escapeHtml(col)}">
+          <input type="number" data-role="filter-max" data-column="${escapeHtml(col)}" class="chart-select" placeholder="Max" step="any" aria-label="Maximum ${escapeHtml(col)}">
         </div>
         ${rangeHint ? `<span class="filter-range-hint">${escapeHtml(rangeHint)}</span>` : ""}
       </div>
@@ -996,6 +1013,16 @@ function generateFilters() {
   }).join("");
 
   container.innerHTML = html;
+}
+
+// Column names are used as DOM lookup keys, but aren't safe as literal
+// ids (duplicates, special characters) or CSS selector values without
+// escaping - matching on a data-column attribute via exact string
+// comparison sidesteps both problems entirely, including the case
+// where two differently-named columns would otherwise collide once
+// non-alphanumeric characters are stripped for an id.
+function findByColumn(root, role, col) {
+  return Array.from(root.querySelectorAll(`[data-role="${role}"]`)).find(el => el.dataset.column === col) || null;
 }
 
 function formatNumberHint(n) {
@@ -1029,10 +1056,6 @@ function filterSidebarSearch() {
   }
 }
 
-function cssEscape(id) {
-  return String(id).replace(/[^a-zA-Z0-9_-]/g, "_");
-}
-
 function applyFiltersClick() {
   const categoricalColumns = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "categorical");
   const numericColumns = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "numeric");
@@ -1040,42 +1063,60 @@ function applyFiltersClick() {
   appState.activeFilters = {};
   appState.numericFilterRanges = {};
 
+  const filterContainer = document.getElementById("filtersContainer2");
+
   categoricalColumns.forEach(col => {
-    const select = document.getElementById(`filter-${cssEscape(col)}`);
+    const select = findByColumn(filterContainer, "filter-select", col);
     if (select && select.value) appState.activeFilters[col] = select.value;
   });
 
   numericColumns.forEach(col => {
-    const minInput = document.getElementById(`filter-min-${cssEscape(col)}`);
-    const maxInput = document.getElementById(`filter-max-${cssEscape(col)}`);
+    const minInput = findByColumn(filterContainer, "filter-min", col);
+    const maxInput = findByColumn(filterContainer, "filter-max", col);
     const min = minInput && minInput.value !== "" ? parseFloat(minInput.value) : null;
     const max = maxInput && maxInput.value !== "" ? parseFloat(maxInput.value) : null;
     if (min !== null || max !== null) appState.numericFilterRanges[col] = { min, max };
   });
 
-  const hasFilters = Object.keys(appState.activeFilters).length > 0 || Object.keys(appState.numericFilterRanges).length > 0;
-
-  if (!hasFilters) {
-    appState.filteredData = [];
-    showToast("No filters selected — showing cleaned data.", "info");
-  } else {
-    appState.filteredData = appState.cleanedData.filter(row => {
-      const categoricalMatch = Object.keys(appState.activeFilters).every(col => row[col] === appState.activeFilters[col]);
-      if (!categoricalMatch) return false;
-      return Object.keys(appState.numericFilterRanges).every(col => {
-        const val = parseFloat(row[col]);
-        if (isNaN(val)) return false;
-        const { min, max } = appState.numericFilterRanges[col];
-        if (min !== null && val < min) return false;
-        if (max !== null && val > max) return false;
-        return true;
-      });
-    });
+  const hasFilters = reapplyActiveFilters();
+  if (hasFilters) {
     showToast(`Filters applied — ${appState.filteredData.length.toLocaleString()} rows match.`, "success");
+  } else {
+    showToast("No filters selected — showing cleaned data.", "info");
   }
 
   initializeVisualizations();
   saveSession();
+}
+
+// Re-derives filteredData from the CURRENT cleanedData using whatever
+// filters are already active in appState. Cleaning actions mutate
+// cleanedData directly, so without this, a filter applied before a
+// cleaning action would keep showing stale pre-cleaning rows in every
+// chart and export that reads activeData(). Returns whether any
+// filter is actually active.
+function reapplyActiveFilters() {
+  const hasFilters = Object.keys(appState.activeFilters).length > 0 || Object.keys(appState.numericFilterRanges).length > 0;
+  appState.filtersActive = hasFilters;
+
+  if (!hasFilters) {
+    appState.filteredData = [];
+    return false;
+  }
+
+  appState.filteredData = appState.cleanedData.filter(row => {
+    const categoricalMatch = Object.keys(appState.activeFilters).every(col => row[col] === appState.activeFilters[col]);
+    if (!categoricalMatch) return false;
+    return Object.keys(appState.numericFilterRanges).every(col => {
+      const val = parseFloat(row[col]);
+      if (isNaN(val)) return false;
+      const { min, max } = appState.numericFilterRanges[col];
+      if (min !== null && val < min) return false;
+      if (max !== null && val > max) return false;
+      return true;
+    });
+  });
+  return true;
 }
 
 function clearAllFilters() {
@@ -1089,6 +1130,7 @@ function clearAllFilters() {
   appState.activeFilters = {};
   appState.numericFilterRanges = {};
   appState.filteredData = [];
+  appState.filtersActive = false;
   showToast("Filters cleared.", "info");
   initializeVisualizations();
   saveSession();
