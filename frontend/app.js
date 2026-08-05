@@ -11,6 +11,9 @@ let appState = {
   isDataLoaded: false,
   chartInstances: {},
   activeFilters: {},
+  numericFilterRanges: {},
+  pendingWorkbook: null,
+  previewSort: { sortCol: "", sortDir: "asc" },
   cleaningActions: {
     removedDuplicates: 0,
     filledMissing: 0,
@@ -24,7 +27,109 @@ let appState = {
 
 document.addEventListener("DOMContentLoaded", () => {
   initializeFileUpload();
+  initializePreviewTableEvents();
+  initializeTheme();
+  if (loadSession()) {
+    document.getElementById("welcomeScreen").style.display = "none";
+    document.getElementById("uploadArea").style.display = "none";
+    document.getElementById("dataOverview").style.display = "block";
+    renderAllSections();
+    showToast("Restored your previous session.", "info");
+  }
 });
+
+// ========= THEME =========
+function initializeTheme() {
+  const icon = document.getElementById("themeToggleIcon");
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  if (icon) icon.textContent = isDark ? "☀️" : "🌙";
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  if (isDark) {
+    document.documentElement.removeAttribute("data-theme");
+  } else {
+    document.documentElement.setAttribute("data-theme", "dark");
+  }
+  try {
+    localStorage.setItem("dv_theme", isDark ? "light" : "dark");
+  } catch (e) {
+    // localStorage unavailable - theme just won't persist
+  }
+  initializeTheme();
+}
+
+// ========= SESSION PERSISTENCE =========
+const SESSION_KEY = "dv_session";
+const SESSION_MAX_ROWS = 5000;
+
+function saveSession() {
+  if (!appState.isDataLoaded) return;
+  if (appState.originalData.length > SESSION_MAX_ROWS) return;
+  try {
+    const snapshot = {
+      fileName: appState.fileName,
+      fileSize: appState.fileSize,
+      originalData: appState.originalData,
+      cleanedData: appState.cleanedData,
+      columnTypes: appState.columnTypes,
+      columnStats: appState.columnStats,
+      cleaningActions: {
+        removedDuplicates: appState.cleaningActions.removedDuplicates,
+        filledMissing: appState.cleaningActions.filledMissing,
+        removedOutliers: appState.cleaningActions.removedOutliers,
+        history: appState.cleaningActions.history
+      },
+      currentInsights: appState.currentInsights,
+      quickInsights: appState.quickInsights
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot));
+  } catch (e) {
+    console.warn("Could not save session", e);
+  }
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return false;
+    const snapshot = JSON.parse(raw);
+    if (!snapshot || !snapshot.originalData || snapshot.originalData.length === 0) return false;
+
+    appState.fileName = snapshot.fileName || "";
+    appState.fileSize = snapshot.fileSize || 0;
+    appState.originalData = snapshot.originalData;
+    appState.cleanedData = snapshot.cleanedData;
+    appState.columnTypes = snapshot.columnTypes || {};
+    appState.columnStats = snapshot.columnStats || {};
+    appState.cleaningActions = {
+      removedDuplicates: snapshot.cleaningActions?.removedDuplicates || 0,
+      filledMissing: snapshot.cleaningActions?.filledMissing || 0,
+      removedOutliers: snapshot.cleaningActions?.removedOutliers || 0,
+      history: snapshot.cleaningActions?.history || [],
+      undoStack: []
+    };
+    appState.currentInsights = snapshot.currentInsights || null;
+    appState.quickInsights = snapshot.quickInsights || [];
+    appState.filteredData = [];
+    appState.activeFilters = {};
+    appState.numericFilterRanges = {};
+    appState.isDataLoaded = true;
+    return true;
+  } catch (e) {
+    console.warn("Could not restore session", e);
+    return false;
+  }
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch (e) {
+    // ignore
+  }
+}
 
 // ========= NAVIGATION =========
 function switchSection(e, sectionName) {
@@ -58,13 +163,18 @@ function switchSection(e, sectionName) {
 }
 
 function toggleMenu() {
-  document.getElementById("navMenu").classList.toggle("active");
-  document.getElementById("hamburger").classList.toggle("active");
+  const menu = document.getElementById("navMenu");
+  const hamburger = document.getElementById("hamburger");
+  menu.classList.toggle("active");
+  hamburger.classList.toggle("active");
+  hamburger.setAttribute("aria-expanded", menu.classList.contains("active") ? "true" : "false");
 }
 
 function closeMenu() {
   document.getElementById("navMenu").classList.remove("active");
-  document.getElementById("hamburger").classList.remove("active");
+  const hamburger = document.getElementById("hamburger");
+  hamburger.classList.remove("active");
+  hamburger.setAttribute("aria-expanded", "false");
 }
 
 // ========= FILE UPLOAD =========
@@ -116,12 +226,16 @@ function resetUpload() {
   appState.fileName = "";
   appState.fileSize = 0;
   appState.activeFilters = {};
+  appState.numericFilterRanges = {};
+  appState.pendingWorkbook = null;
+  appState.previewSort = { sortCol: "", sortDir: "asc" };
   appState.cleaningActions = { removedDuplicates: 0, filledMissing: 0, removedOutliers: 0, history: [], undoStack: [] };
   appState.currentInsights = null;
   appState.quickInsights = [];
 
   Object.keys(appState.chartInstances).forEach(id => {
-    if (appState.chartInstances[id]) appState.chartInstances[id].destroy();
+    const inst = appState.chartInstances[id];
+    if (inst && typeof inst.destroy === "function") inst.destroy();
   });
   appState.chartInstances = {};
 
@@ -130,9 +244,15 @@ function resetUpload() {
   document.getElementById("dataOverview").style.display = "none";
   document.getElementById("fileInput").value = "";
 
+  const sheetPicker = document.getElementById("sheetPicker");
+  if (sheetPicker) sheetPicker.style.display = "none";
+  const searchInput = document.getElementById("previewSearch");
+  if (searchInput) searchInput.value = "";
+
   const generated = document.getElementById("generatedInsights");
   if (generated) generated.style.display = "none";
 
+  clearSession();
   showToast("Ready for a new upload.", "info");
 }
 
@@ -153,6 +273,8 @@ function processFile(file) {
   const progressDiv = document.getElementById("uploadProgress");
   const progressText = document.getElementById("progressText");
   const progressFill = document.getElementById("progressFill");
+  const sheetPicker = document.getElementById("sheetPicker");
+  if (sheetPicker) sheetPicker.style.display = "none";
 
   if (progressDiv) progressDiv.style.display = "block";
   if (progressText) progressText.textContent = "Reading file...";
@@ -164,38 +286,26 @@ function processFile(file) {
       if (progressText) progressText.textContent = "Parsing data...";
       if (progressFill) progressFill.style.width = "60%";
 
-      let jsonData;
       if (ext === "csv") {
-        jsonData = parseCSV(e.target.result);
-      } else {
-        const data = new Uint8Array(e.target.result);
-        const wb = XLSX.read(data, { type: "array" });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        jsonData = XLSX.utils.sheet_to_json(sheet);
+        finalizeUpload(parseCSV(e.target.result));
+        return;
       }
 
-      if (!jsonData || jsonData.length === 0) {
-        throw new Error("File is empty or has no valid rows.");
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: "array" });
+
+      if (wb.SheetNames.length > 1) {
+        appState.pendingWorkbook = wb;
+        if (progressDiv) progressDiv.style.display = "none";
+        const sheetSelect = document.getElementById("sheetSelect");
+        sheetSelect.innerHTML = wb.SheetNames.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+        if (sheetPicker) sheetPicker.style.display = "block";
+        showToast("Multiple sheets found - pick one to load.", "info");
+        return;
       }
 
-      if (progressText) progressText.textContent = "Processing data...";
-      if (progressFill) progressFill.style.width = "85%";
-
-      appState.originalData = jsonData;
-      appState.cleanedData = JSON.parse(JSON.stringify(jsonData));
-      appState.filteredData = [];
-      appState.isDataLoaded = true;
-      appState.activeFilters = {};
-      appState.cleaningActions = { removedDuplicates: 0, filledMissing: 0, removedOutliers: 0, history: [], undoStack: [] };
-      appState.currentInsights = null;
-
-      detectColumnTypes(jsonData);
-      computeColumnStats(jsonData);
-
-      if (progressText) progressText.textContent = "Complete!";
-      if (progressFill) progressFill.style.width = "100%";
-
-      setTimeout(transitionToDataOverview, 400);
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      finalizeUpload(XLSX.utils.sheet_to_json(sheet));
     } catch (err) {
       console.error(err);
       showToast("Error parsing file: " + err.message, "error");
@@ -213,6 +323,56 @@ function processFile(file) {
   } else {
     reader.readAsArrayBuffer(file);
   }
+}
+
+function confirmSheetSelection() {
+  const wb = appState.pendingWorkbook;
+  const sheetSelect = document.getElementById("sheetSelect");
+  if (!wb || !sheetSelect || !sheetSelect.value) return;
+
+  const sheet = wb.Sheets[sheetSelect.value];
+  const jsonData = XLSX.utils.sheet_to_json(sheet);
+  appState.pendingWorkbook = null;
+
+  const sheetPicker = document.getElementById("sheetPicker");
+  if (sheetPicker) sheetPicker.style.display = "none";
+  const progressDiv = document.getElementById("uploadProgress");
+  if (progressDiv) progressDiv.style.display = "block";
+
+  finalizeUpload(jsonData);
+}
+
+function finalizeUpload(jsonData) {
+  const progressDiv = document.getElementById("uploadProgress");
+  const progressText = document.getElementById("progressText");
+  const progressFill = document.getElementById("progressFill");
+
+  if (!jsonData || jsonData.length === 0) {
+    showToast("File is empty or has no valid rows.", "error");
+    if (progressDiv) progressDiv.style.display = "none";
+    return;
+  }
+
+  if (progressText) progressText.textContent = "Processing data...";
+  if (progressFill) progressFill.style.width = "85%";
+
+  appState.originalData = jsonData;
+  appState.cleanedData = JSON.parse(JSON.stringify(jsonData));
+  appState.filteredData = [];
+  appState.isDataLoaded = true;
+  appState.activeFilters = {};
+  appState.numericFilterRanges = {};
+  appState.previewSort = { sortCol: "", sortDir: "asc" };
+  appState.cleaningActions = { removedDuplicates: 0, filledMissing: 0, removedOutliers: 0, history: [], undoStack: [] };
+  appState.currentInsights = null;
+
+  detectColumnTypes(jsonData);
+  computeColumnStats(jsonData);
+
+  if (progressText) progressText.textContent = "Complete!";
+  if (progressFill) progressFill.style.width = "100%";
+
+  setTimeout(transitionToDataOverview, 400);
 }
 
 // ========= CSV PARSER (handles quoted fields, commas & newlines inside quotes) =========
@@ -363,19 +523,22 @@ function computeColumnStats(data) {
 function transitionToDataOverview() {
   document.getElementById("welcomeScreen").style.display = "none";
   document.getElementById("uploadArea").style.display = "none";
-  const overview = document.getElementById("dataOverview");
-  overview.style.display = "block";
-  updateDashboardOverview();
+  document.getElementById("dataOverview").style.display = "block";
 
   const progressDiv = document.getElementById("uploadProgress");
   if (progressDiv) progressDiv.style.display = "none";
 
+  renderAllSections();
+  showToast("File uploaded successfully!", "success");
+  saveSession();
+}
+
+function renderAllSections() {
+  updateDashboardOverview();
   generateDataQuality();
   generateFilters();
   initializeVisualizations();
   renderQuickInsights();
-
-  showToast("File uploaded successfully!", "success");
 }
 
 function updateDashboardOverview() {
@@ -384,11 +547,32 @@ function updateDashboardOverview() {
   const cols = rows > 0 ? Object.keys(originalData[0]).length : 0;
 
   document.getElementById("statFileName").textContent = fileName || "-";
-  document.getElementById("statRows").textContent = rows.toLocaleString();
-  document.getElementById("statColumns").textContent = cols.toLocaleString();
+  animateCount(document.getElementById("statRows"), rows);
+  animateCount(document.getElementById("statColumns"), cols);
   document.getElementById("statSize").textContent = formatFileSize(fileSize);
 
-  displayDataPreview(originalData);
+  const searchInput = document.getElementById("previewSearch");
+  if (searchInput) searchInput.value = "";
+  renderPreviewTable();
+}
+
+function animateCount(el, target, duration = 800) {
+  if (!el) return;
+  // Set the real value up front so it's always correct even if
+  // requestAnimationFrame never fires (backgrounded/inactive tab) -
+  // the loop below then animates over it when rAF does run.
+  el.textContent = target.toLocaleString();
+  const startTime = performance.now();
+
+  function tick(now) {
+    const progress = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const value = Math.round(target * eased);
+    el.textContent = value.toLocaleString();
+    if (progress < 1) requestAnimationFrame(tick);
+    else el.textContent = target.toLocaleString();
+  }
+  requestAnimationFrame(tick);
 }
 
 function formatFileSize(bytes) {
@@ -399,33 +583,104 @@ function formatFileSize(bytes) {
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
 }
 
-function displayDataPreview(rows) {
+// ========= PREVIEW TABLE (search + sort + type badges) =========
+function initializePreviewTableEvents() {
   const table = document.getElementById("dataPreviewTable");
   if (!table) return;
 
+  table.addEventListener("click", (e) => {
+    const th = e.target.closest("th.sortable");
+    if (th && th.dataset.col) sortPreviewBy(th.dataset.col);
+  });
+
+  table.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const th = e.target.closest("th.sortable");
+    if (th && th.dataset.col) {
+      e.preventDefault();
+      sortPreviewBy(th.dataset.col);
+    }
+  });
+}
+
+function sortPreviewBy(col) {
+  if (appState.previewSort.sortCol === col) {
+    appState.previewSort.sortDir = appState.previewSort.sortDir === "asc" ? "desc" : "asc";
+  } else {
+    appState.previewSort.sortCol = col;
+    appState.previewSort.sortDir = "asc";
+  }
+  renderPreviewTable();
+}
+
+function renderPreviewTable() {
+  const table = document.getElementById("dataPreviewTable");
+  const countEl = document.getElementById("previewRowCount");
+  if (!table) return;
+
+  const rows = appState.originalData;
   if (!rows || rows.length === 0) {
     table.innerHTML = "<tr><td>No data to display</td></tr>";
+    if (countEl) countEl.textContent = "";
     return;
   }
 
   const columns = Object.keys(rows[0]);
+  const searchInput = document.getElementById("previewSearch");
+  const search = (searchInput ? searchInput.value : "").trim().toLowerCase();
+
+  let filtered = rows;
+  if (search) {
+    filtered = rows.filter(row => columns.some(col => String(row[col] ?? "").toLowerCase().includes(search)));
+  }
+
+  const { sortCol, sortDir } = appState.previewSort;
+  if (sortCol) {
+    filtered = [...filtered].sort((a, b) => {
+      const av = a[sortCol];
+      const bv = b[sortCol];
+      const an = parseFloat(av);
+      const bn = parseFloat(bv);
+      let cmp;
+      if (!isNaN(an) && !isNaN(bn) && String(av ?? "").trim() !== "" && String(bv ?? "").trim() !== "") {
+        cmp = an - bn;
+      } else {
+        cmp = String(av ?? "").localeCompare(String(bv ?? ""));
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }
+
+  const shown = filtered.slice(0, 50);
+
   let html = "<thead><tr>";
-  columns.forEach(col => { html += `<th>${escapeHtml(col)}</th>`; });
+  columns.forEach(col => {
+    const isSorted = sortCol === col;
+    const indicator = isSorted ? (sortDir === "asc" ? "▲" : "▼") : "";
+    const type = appState.columnTypes[col] || "text";
+    html += `<th class="sortable" tabindex="0" role="button" data-col="${escapeHtml(col)}" aria-sort="${isSorted ? (sortDir === "asc" ? "ascending" : "descending") : "none"}">${escapeHtml(col)}<span class="type-badge ${type}">${type}</span><span class="sort-indicator" aria-hidden="true">${indicator}</span></th>`;
+  });
   html += "</tr></thead><tbody>";
 
-  rows.slice(0, 50).forEach(row => {
+  shown.forEach(row => {
     html += "<tr>";
     columns.forEach(col => { html += `<td>${escapeHtml(row[col])}</td>`; });
     html += "</tr>";
   });
   html += "</tbody>";
   table.innerHTML = html;
+
+  if (countEl) {
+    let text = `Showing ${shown.length.toLocaleString()} of ${filtered.length.toLocaleString()} rows`;
+    if (search) text += ` (filtered from ${rows.length.toLocaleString()})`;
+    countEl.textContent = text;
+  }
 }
 
 function escapeHtml(value) {
   const div = document.createElement("div");
   div.textContent = value === null || value === undefined ? "" : String(value);
-  return div.innerHTML;
+  return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 // ========= DATA HELPERS =========
@@ -444,9 +699,11 @@ function findDuplicates(data) {
   return duplicates;
 }
 
-function detectOutliersWithDetails(data) {
+function detectOutliersWithDetails(data, onlyColumn) {
   const outliers = {};
-  const numericCols = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "numeric");
+  const numericCols = onlyColumn
+    ? [onlyColumn]
+    : Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "numeric");
 
   numericCols.forEach(col => {
     const values = data.map(row => parseFloat(row[col])).filter(v => !isNaN(v));
@@ -478,6 +735,7 @@ function generateDataQuality() {
   }
 
   const columns = Object.keys(data[0]);
+  const numericCols = columns.filter(c => appState.columnTypes[c] === "numeric");
   let missingCells = 0;
   const missingByColumn = [];
   columns.forEach(col => {
@@ -507,8 +765,14 @@ function generateDataQuality() {
       <div class="cleaning-buttons">
         <button class="btn btn-primary" onclick="removeDuplicates()">Remove Duplicates (${appState.cleaningActions.removedDuplicates})</button>
         <button class="btn btn-primary" onclick="fillMissing()">Fill Missing Values (${appState.cleaningActions.filledMissing})</button>
-        <button class="btn btn-primary" onclick="removeOutliers()">Remove Outliers (${appState.cleaningActions.removedOutliers})</button>
         <button class="btn btn-secondary" onclick="undoLastCleaning()" ${appState.cleaningActions.undoStack.length === 0 ? "disabled" : ""}>↺ Undo Last Action</button>
+      </div>
+      <div class="cleaning-action-row" style="margin-bottom: 20px;">
+        <select id="outlierColumnSelect" class="chart-select" ${numericCols.length === 0 ? "disabled" : ""}>
+          <option value="">All numeric columns</option>
+          ${numericCols.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}
+        </select>
+        <button class="btn btn-primary" onclick="removeOutliers(document.getElementById('outlierColumnSelect').value)" ${numericCols.length === 0 ? "disabled" : ""}>Remove Outliers (${appState.cleaningActions.removedOutliers})</button>
       </div>
   `;
 
@@ -575,6 +839,7 @@ function removeDuplicates() {
   appState.cleaningActions.history.push(`Removed ${removed} duplicate rows.`);
   showToast(`Removed ${removed} duplicate rows.`, "success");
   generateDataQuality();
+  saveSession();
 }
 
 function fillMissing() {
@@ -610,14 +875,16 @@ function fillMissing() {
   appState.cleaningActions.history.push(`Filled ${filled} missing values.`);
   showToast(`Filled ${filled} missing values.`, "success");
   generateDataQuality();
+  saveSession();
 }
 
-function removeOutliers() {
+function removeOutliers(column) {
   const data = appState.cleanedData;
   if (!data || data.length === 0) return;
   pushUndoSnapshot();
 
-  const outliers = detectOutliersWithDetails(data);
+  const targetColumn = column || null;
+  const outliers = detectOutliersWithDetails(data, targetColumn);
   const outlierRowIndexes = new Set();
 
   Object.keys(outliers).forEach(col => {
@@ -640,9 +907,12 @@ function removeOutliers() {
   const removed = before - appState.cleanedData.length;
 
   appState.cleaningActions.removedOutliers += removed;
-  appState.cleaningActions.history.push(`Removed ${removed} outlier rows.`);
+  appState.cleaningActions.history.push(
+    targetColumn ? `Removed ${removed} outlier rows (column: ${targetColumn}).` : `Removed ${removed} outlier rows.`
+  );
   showToast(`Removed ${removed} outlier rows.`, "success");
   generateDataQuality();
+  saveSession();
 }
 
 function undoLastCleaning() {
@@ -658,9 +928,10 @@ function undoLastCleaning() {
   appState.cleaningActions.removedOutliers = snapshot.removedOutliers;
   showToast("Last cleaning action undone.", "info");
   generateDataQuality();
+  saveSession();
 }
 
-// ========= FILTERS =========
+// ========= FILTERS (categorical + numeric range) =========
 function generateFilters() {
   const panel = document.getElementById("filtersPanel");
   const container = document.getElementById("filtersContainer2");
@@ -668,15 +939,17 @@ function generateFilters() {
 
   const data = appState.cleanedData;
   const categoricalColumns = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "categorical");
+  const numericColumns = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "numeric");
 
-  if (categoricalColumns.length === 0) {
+  if (categoricalColumns.length === 0 && numericColumns.length === 0) {
     panel.style.display = "none";
     container.innerHTML = "";
     return;
   }
 
   panel.style.display = "block";
-  container.innerHTML = categoricalColumns.map(col => {
+
+  let html = categoricalColumns.map(col => {
     const uniqueValues = [...new Set(data.map(row => row[col]).filter(v => v !== "" && v !== null && v !== undefined))].sort();
     return `
       <div class="control-group">
@@ -688,6 +961,23 @@ function generateFilters() {
       </div>
     `;
   }).join("");
+
+  html += numericColumns.map(col => {
+    const stats = appState.columnStats[col];
+    const minHint = stats && stats.min !== undefined ? stats.min.toFixed(2) : "Min";
+    const maxHint = stats && stats.max !== undefined ? stats.max.toFixed(2) : "Max";
+    return `
+      <div class="control-group">
+        <label>${escapeHtml(col)} (min - max)</label>
+        <div style="display:flex; gap:6px;">
+          <input type="number" id="filter-min-${cssEscape(col)}" class="chart-select" placeholder="${minHint}" step="any" aria-label="Minimum ${escapeHtml(col)}">
+          <input type="number" id="filter-max-${cssEscape(col)}" class="chart-select" placeholder="${maxHint}" step="any" aria-label="Maximum ${escapeHtml(col)}">
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  container.innerHTML = html;
 }
 
 function cssEscape(id) {
@@ -696,32 +986,58 @@ function cssEscape(id) {
 
 function applyFiltersClick() {
   const categoricalColumns = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "categorical");
+  const numericColumns = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "numeric");
+
   appState.activeFilters = {};
+  appState.numericFilterRanges = {};
 
   categoricalColumns.forEach(col => {
     const select = document.getElementById(`filter-${cssEscape(col)}`);
     if (select && select.value) appState.activeFilters[col] = select.value;
   });
 
-  if (Object.keys(appState.activeFilters).length === 0) {
+  numericColumns.forEach(col => {
+    const minInput = document.getElementById(`filter-min-${cssEscape(col)}`);
+    const maxInput = document.getElementById(`filter-max-${cssEscape(col)}`);
+    const min = minInput && minInput.value !== "" ? parseFloat(minInput.value) : null;
+    const max = maxInput && maxInput.value !== "" ? parseFloat(maxInput.value) : null;
+    if (min !== null || max !== null) appState.numericFilterRanges[col] = { min, max };
+  });
+
+  const hasFilters = Object.keys(appState.activeFilters).length > 0 || Object.keys(appState.numericFilterRanges).length > 0;
+
+  if (!hasFilters) {
     appState.filteredData = [];
     showToast("No filters selected — showing cleaned data.", "info");
   } else {
-    appState.filteredData = appState.cleanedData.filter(row =>
-      Object.keys(appState.activeFilters).every(col => row[col] === appState.activeFilters[col])
-    );
+    appState.filteredData = appState.cleanedData.filter(row => {
+      const categoricalMatch = Object.keys(appState.activeFilters).every(col => row[col] === appState.activeFilters[col]);
+      if (!categoricalMatch) return false;
+      return Object.keys(appState.numericFilterRanges).every(col => {
+        const val = parseFloat(row[col]);
+        if (isNaN(val)) return false;
+        const { min, max } = appState.numericFilterRanges[col];
+        if (min !== null && val < min) return false;
+        if (max !== null && val > max) return false;
+        return true;
+      });
+    });
     showToast(`Filters applied — ${appState.filteredData.length.toLocaleString()} rows match.`, "success");
   }
 
   initializeVisualizations();
+  saveSession();
 }
 
 function clearAllFilters() {
   document.querySelectorAll("#filtersContainer2 select").forEach(sel => { sel.value = ""; });
+  document.querySelectorAll("#filtersContainer2 input[type=number]").forEach(inp => { inp.value = ""; });
   appState.activeFilters = {};
+  appState.numericFilterRanges = {};
   appState.filteredData = [];
   showToast("Filters cleared.", "info");
   initializeVisualizations();
+  saveSession();
 }
 
 function toggleFiltersPanel() {
@@ -739,18 +1055,12 @@ function initializeVisualizations() {
   const numericCols = columns.filter(c => appState.columnTypes[c] === "numeric");
 
   const noDataMsg = document.getElementById("noVisualizationsMessage");
-  const hasAnyCols = columns.length > 0;
-  if (noDataMsg) noDataMsg.style.display = hasAnyCols ? "none" : "block";
+  if (noDataMsg) noDataMsg.style.display = "none";
 
-  const categoricalSection = document.getElementById("categoricalSection");
-  const numericSection = document.getElementById("numericSection");
-  const pieSection = document.getElementById("pieSection");
-  const comparisonSection = document.getElementById("comparisonSection");
-
-  if (categoricalSection) categoricalSection.style.display = categoricalCols.length > 0 ? "block" : "none";
-  if (pieSection) pieSection.style.display = categoricalCols.length > 0 ? "block" : "none";
-  if (numericSection) numericSection.style.display = numericCols.length > 0 ? "block" : "none";
-  if (comparisonSection) comparisonSection.style.display = columns.length >= 2 ? "block" : "none";
+  ["categoricalSection", "numericSection", "pieSection", "comparisonSection", "heatmapSection"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "block";
+  });
 
   fillSelect("categoricalColumnSelect", categoricalCols, "Choose a column...");
   fillSelect("pieColumnSelect", categoricalCols, "Choose a column...");
@@ -759,14 +1069,36 @@ function initializeVisualizations() {
   fillSelect("yAxisSelect", columns, "Choose a column...");
   fillSelect("groupBySelect", categoricalCols, "No grouping", true);
 
+  document.getElementById("categoricalColumnSelect").disabled = categoricalCols.length === 0;
+  document.getElementById("pieColumnSelect").disabled = categoricalCols.length === 0;
+  document.getElementById("numericColumnSelect").disabled = numericCols.length === 0;
+
   if (categoricalCols.length > 0) renderCategoricalChart(categoricalCols[0]);
+  else showChartEmptyState("categoricalChart", "No categorical columns detected in this dataset.");
+
   if (numericCols.length > 0) renderNumericChart(numericCols[0]);
+  else showChartEmptyState("numericChart", "No numeric columns detected in this dataset.");
+
   if (categoricalCols.length > 0) renderPieChartViz(categoricalCols[0]);
+  else showChartEmptyState("pieChart", "No categorical columns detected in this dataset.");
+
   if (columns.length >= 2) {
     document.getElementById("xAxisSelect").value = columns[0];
     document.getElementById("yAxisSelect").value = numericCols[0] || columns[1];
     renderComparisonChart();
+  } else {
+    showChartEmptyState("comparisonChart", "Need at least 2 columns to compare.");
   }
+
+  renderCorrelationHeatmap();
+}
+
+function showChartEmptyState(containerId, message) {
+  const existing = appState.chartInstances[containerId];
+  if (existing && typeof existing.destroy === "function") existing.destroy();
+  delete appState.chartInstances[containerId];
+  const container = document.getElementById(containerId);
+  if (container) container.innerHTML = `<div class="chart-empty-state">${escapeHtml(message)}</div>`;
 }
 
 function fillSelect(selectId, values, placeholder, keepPlaceholderValue) {
@@ -782,7 +1114,7 @@ const CHART_COLORS = ["#B3D9FF", "#FFB3D9", "#B3FFD9", "#FFFAB3", "#D9B3FF", "#F
 
 function ensureCanvas(containerId) {
   const container = document.getElementById(containerId);
-  if (appState.chartInstances[containerId]) {
+  if (appState.chartInstances[containerId] && typeof appState.chartInstances[containerId].destroy === "function") {
     appState.chartInstances[containerId].destroy();
     delete appState.chartInstances[containerId];
   }
@@ -791,7 +1123,10 @@ function ensureCanvas(containerId) {
 }
 
 function renderCategoricalChart(columnName) {
-  if (!columnName) return;
+  if (!columnName) {
+    showChartEmptyState("categoricalChart", "Choose a column to see its distribution.");
+    return;
+  }
   document.getElementById("categoricalColumnSelect").value = columnName;
   const data = activeData();
   const ctx = ensureCanvas("categoricalChart");
@@ -826,14 +1161,20 @@ function renderCategoricalChart(columnName) {
 }
 
 function renderNumericChart(columnName) {
-  if (!columnName) return;
+  if (!columnName) {
+    showChartEmptyState("numericChart", "Choose a column to see its distribution.");
+    return;
+  }
   document.getElementById("numericColumnSelect").value = columnName;
   const data = activeData();
-  const ctx = ensureCanvas("numericChart");
 
   const values = data.map(row => parseFloat(row[columnName])).filter(v => !isNaN(v));
-  if (values.length === 0) return;
+  if (values.length === 0) {
+    showChartEmptyState("numericChart", "No numeric values available for this column.");
+    return;
+  }
 
+  const ctx = ensureCanvas("numericChart");
   const min = Math.min(...values);
   const max = Math.max(...values);
   const binCount = Math.max(1, Math.min(20, Math.ceil(Math.sqrt(values.length))));
@@ -874,7 +1215,10 @@ function renderNumericChart(columnName) {
 }
 
 function renderPieChartViz(columnName) {
-  if (!columnName) return;
+  if (!columnName) {
+    showChartEmptyState("pieChart", "Choose a column to see its proportions.");
+    return;
+  }
   document.getElementById("pieColumnSelect").value = columnName;
   const data = activeData();
   const ctx = ensureCanvas("pieChart");
@@ -917,7 +1261,7 @@ function partitionByGroup(data, groupCol) {
   const keys = Object.keys(groups);
   if (keys.length > 8) {
     const kept = keys.slice(0, 7);
-    const merged = { "Other": [] };
+    const merged = { Other: [] };
     keys.slice(7).forEach(k => merged.Other.push(...groups[k]));
     const result = {};
     kept.forEach(k => { result[k] = groups[k]; });
@@ -932,7 +1276,11 @@ function renderComparisonChart() {
   const xColumn = document.getElementById("xAxisSelect")?.value;
   const yColumn = document.getElementById("yAxisSelect")?.value;
   const groupBy = document.getElementById("groupBySelect")?.value;
-  if (!xColumn || !yColumn) return;
+
+  if (!xColumn || !yColumn) {
+    showChartEmptyState("comparisonChart", "Choose both X and Y columns to compare.");
+    return;
+  }
 
   const data = activeData();
   const ctx = ensureCanvas("comparisonChart");
@@ -1026,9 +1374,138 @@ function renderComparisonChart() {
   appState.chartInstances.comparisonChart = new Chart(ctx, chartConfig);
 }
 
+// ========= CORRELATION HEATMAP =========
+function pearsonCorrelation(xs, ys) {
+  const n = xs.length;
+  if (n === 0) return 0;
+  const meanX = xs.reduce((a, b) => a + b, 0) / n;
+  const meanY = ys.reduce((a, b) => a + b, 0) / n;
+  let num = 0, denX = 0, denY = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - meanX;
+    const dy = ys[i] - meanY;
+    num += dx * dy;
+    denX += dx * dx;
+    denY += dy * dy;
+  }
+  const den = Math.sqrt(denX * denY);
+  return den === 0 ? 0 : num / den;
+}
+
+function correlationColor(v) {
+  const t = (v + 1) / 2;
+  const c1 = [37, 99, 235];
+  const c2 = [255, 255, 255];
+  const c3 = [220, 38, 38];
+  let r, g, b;
+  if (t < 0.5) {
+    const k = t / 0.5;
+    r = c1[0] + (c2[0] - c1[0]) * k;
+    g = c1[1] + (c2[1] - c1[1]) * k;
+    b = c1[2] + (c2[2] - c1[2]) * k;
+  } else {
+    const k = (t - 0.5) / 0.5;
+    r = c2[0] + (c3[0] - c2[0]) * k;
+    g = c2[1] + (c3[1] - c2[1]) * k;
+    b = c2[2] + (c3[2] - c2[2]) * k;
+  }
+  return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+}
+
+function truncateLabel(s) {
+  return s.length > 12 ? s.slice(0, 11) + "…" : s;
+}
+
+function renderCorrelationHeatmap() {
+  const container = document.getElementById("heatmapChart");
+  if (!container) return;
+
+  const inst = appState.chartInstances.heatmapChart;
+  if (inst && typeof inst.destroy === "function") inst.destroy();
+  delete appState.chartInstances.heatmapChart;
+
+  const numericCols = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "numeric").slice(0, 10);
+  if (numericCols.length < 2) {
+    container.innerHTML = '<div class="chart-empty-state">Need at least 2 numeric columns for a correlation heatmap.</div>';
+    return;
+  }
+
+  const data = activeData();
+  const n = numericCols.length;
+  const matrix = [];
+  for (let i = 0; i < n; i++) {
+    matrix.push([]);
+    for (let j = 0; j < n; j++) {
+      if (i === j) {
+        matrix[i].push(1);
+        continue;
+      }
+      const pairs = data
+        .map(r => [parseFloat(r[numericCols[i]]), parseFloat(r[numericCols[j]])])
+        .filter(p => !isNaN(p[0]) && !isNaN(p[1]));
+      matrix[i].push(pairs.length < 2 ? 0 : pearsonCorrelation(pairs.map(p => p[0]), pairs.map(p => p[1])));
+    }
+  }
+
+  const cellSize = 70;
+  const labelSpace = 130;
+  const canvasWidth = labelSpace + n * cellSize + 20;
+  const canvasHeight = labelSpace + n * cellSize + 20;
+
+  container.innerHTML = '<div class="heatmap-wrapper"><canvas id="heatmapChartCanvas"></canvas></div>' +
+    '<div class="heatmap-legend"><span>-1</span><div class="heatmap-legend-gradient"></div><span>+1</span></div>';
+
+  const canvas = document.getElementById("heatmapChartCanvas");
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.font = "11px Inter, monospace";
+  ctx.fillStyle = "#1A1A1A";
+
+  for (let i = 0; i < n; i++) {
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#1A1A1A";
+    ctx.fillText(truncateLabel(numericCols[i]), labelSpace - 8, labelSpace + i * cellSize + cellSize / 2);
+  }
+
+  for (let j = 0; j < n; j++) {
+    ctx.save();
+    ctx.translate(labelSpace + j * cellSize + cellSize / 2, labelSpace - 8);
+    ctx.rotate(-Math.PI / 4);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#1A1A1A";
+    ctx.fillText(truncateLabel(numericCols[j]), 0, 0);
+    ctx.restore();
+  }
+
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const val = matrix[i][j];
+      const x = labelSpace + j * cellSize;
+      const y = labelSpace + i * cellSize;
+      ctx.fillStyle = correlationColor(val);
+      ctx.fillRect(x, y, cellSize, cellSize);
+      ctx.strokeStyle = "#1A1A1A";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, cellSize, cellSize);
+      ctx.fillStyle = Math.abs(val) > 0.6 ? "#ffffff" : "#1A1A1A";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "12px Inter, monospace";
+      ctx.fillText(val.toFixed(2), x + cellSize / 2, y + cellSize / 2);
+    }
+  }
+
+  appState.chartInstances.heatmapChart = { toBase64Image: () => canvas.toDataURL("image/png") };
+}
+
 function downloadChartImage(containerId) {
   const chart = appState.chartInstances[containerId];
-  if (!chart) {
+  if (!chart || typeof chart.toBase64Image !== "function") {
     showToast("Render a chart first.", "warning");
     return;
   }
@@ -1038,6 +1515,76 @@ function downloadChartImage(containerId) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+}
+
+// ========= MARKDOWN RENDERING =========
+function inlineMarkdown(text) {
+  let escaped = escapeHtml(text);
+  escaped = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  escaped = escaped.replace(/(^|[^*])\*([^*]+?)\*(?!\*)/g, "$1<em>$2</em>");
+  return escaped;
+}
+
+function renderMarkdown(text) {
+  if (!text) return "";
+  const lines = text.split(/\r?\n/);
+  let html = "";
+  let listType = null;
+  let paragraphBuffer = [];
+
+  function flushParagraph() {
+    if (paragraphBuffer.length > 0) {
+      html += `<p>${inlineMarkdown(paragraphBuffer.join(" "))}</p>`;
+      paragraphBuffer = [];
+    }
+  }
+  function closeList() {
+    if (listType) {
+      html += `</${listType}>`;
+      listType = null;
+    }
+  }
+
+  lines.forEach(rawLine => {
+    const line = rawLine.trim();
+    if (line === "") {
+      flushParagraph();
+      closeList();
+      return;
+    }
+
+    let m;
+    if ((m = line.match(/^###\s+(.*)$/))) { flushParagraph(); closeList(); html += `<h4>${inlineMarkdown(m[1])}</h4>`; return; }
+    if ((m = line.match(/^##\s+(.*)$/))) { flushParagraph(); closeList(); html += `<h3>${inlineMarkdown(m[1])}</h3>`; return; }
+    if ((m = line.match(/^#\s+(.*)$/))) { flushParagraph(); closeList(); html += `<h2>${inlineMarkdown(m[1])}</h2>`; return; }
+
+    if ((m = line.match(/^[-*]\s+(.*)$/))) {
+      flushParagraph();
+      if (listType !== "ul") { closeList(); html += "<ul>"; listType = "ul"; }
+      html += `<li>${inlineMarkdown(m[1])}</li>`;
+      return;
+    }
+    if ((m = line.match(/^\d+\.\s+(.*)$/))) {
+      flushParagraph();
+      if (listType !== "ol") { closeList(); html += "<ol>"; listType = "ol"; }
+      html += `<li>${inlineMarkdown(m[1])}</li>`;
+      return;
+    }
+
+    closeList();
+    paragraphBuffer.push(line);
+  });
+  flushParagraph();
+  closeList();
+  return html;
+}
+
+function stripMarkdown(text) {
+  return String(text)
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/^[-*]\s+/gm, "- ");
 }
 
 // ========= AI INSIGHTS =========
@@ -1146,7 +1693,7 @@ async function generateInsightsDocument() {
     appState.currentInsights = json;
 
     const doc = document.getElementById("insightsDocumentContent");
-    if (doc) doc.textContent = json.insights || "(backend returned no insights text)";
+    if (doc) doc.innerHTML = json.insights ? renderMarkdown(json.insights) : "(backend returned no insights text)";
 
     const dateEl = document.getElementById("insightsGeneratedDate");
     if (dateEl) dateEl.textContent = `Generated ${new Date().toLocaleString()}`;
@@ -1155,6 +1702,7 @@ async function generateInsightsDocument() {
     if (card) card.style.display = "block";
 
     showToast("AI insights generated.", "success");
+    saveSession();
   } catch (err) {
     console.error(err);
     showToast("Network error talking to backend.", "error");
@@ -1174,7 +1722,20 @@ function exportFilteredData() {
     return;
   }
   downloadFile(convertToCSV(data), "datavizard_export.csv", "text/csv");
-  showToast("Data exported.", "success");
+  showToast("Data exported as CSV.", "success");
+}
+
+function exportFilteredDataXLSX() {
+  const data = activeData();
+  if (!data || data.length === 0) {
+    showToast("No data to export.", "warning");
+    return;
+  }
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Data");
+  XLSX.writeFile(wb, "datavizard_export.xlsx");
+  showToast("Data exported as XLSX.", "success");
 }
 
 function exportSummary() {
@@ -1221,6 +1782,110 @@ function exportInsights() {
   showToast("Insights exported.", "success");
 }
 
+function chartTitleFor(id) {
+  const map = {
+    categoricalChart: "Categorical Distribution",
+    numericChart: "Numeric Distribution",
+    pieChart: "Proportion Analysis",
+    comparisonChart: "Variable Comparison",
+    heatmapChart: "Correlation Heatmap"
+  };
+  return map[id] || id;
+}
+
+async function exportPDFReport() {
+  if (!appState.isDataLoaded) {
+    showToast("Upload a dataset first.", "warning");
+    return;
+  }
+
+  const btn = document.getElementById("exportPdfBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Generating PDF...";
+  }
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 40;
+    let y = margin;
+
+    doc.setFontSize(20);
+    doc.text("DataVizard Report", margin, y);
+    y += 28;
+    doc.setFontSize(10);
+    doc.text(`File: ${appState.fileName}`, margin, y);
+    y += 14;
+    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
+    y += 14;
+    const cols = Object.keys(appState.cleanedData[0] || {}).length;
+    doc.text(`Rows: ${appState.cleanedData.length}   Columns: ${cols}`, margin, y);
+    y += 26;
+
+    doc.setFontSize(14);
+    doc.text("Quick Insights", margin, y);
+    y += 18;
+    doc.setFontSize(10);
+    appState.quickInsights.forEach(ins => {
+      const wrapped = doc.splitTextToSize(`- ${ins.title}: ${ins.description}`, pageWidth - margin * 2);
+      wrapped.forEach(l => {
+        if (y > pageHeight - 60) { doc.addPage(); y = margin; }
+        doc.text(l, margin, y);
+        y += 14;
+      });
+    });
+    y += 12;
+
+    if (appState.currentInsights && appState.currentInsights.insights) {
+      if (y > pageHeight - 120) { doc.addPage(); y = margin; }
+      doc.setFontSize(14);
+      doc.text("AI-Generated Insights", margin, y);
+      y += 18;
+      doc.setFontSize(10);
+      const wrapped = doc.splitTextToSize(stripMarkdown(appState.currentInsights.insights), pageWidth - margin * 2);
+      wrapped.forEach(l => {
+        if (y > pageHeight - 60) { doc.addPage(); y = margin; }
+        doc.text(l, margin, y);
+        y += 14;
+      });
+    }
+
+    const chartIds = ["categoricalChart", "numericChart", "pieChart", "comparisonChart", "heatmapChart"];
+    chartIds.forEach(id => {
+      const inst = appState.chartInstances[id];
+      if (!inst || typeof inst.toBase64Image !== "function") return;
+      try {
+        const img = inst.toBase64Image();
+        if (!img || !img.startsWith("data:image")) return;
+        doc.addPage();
+        let cy = margin;
+        doc.setFontSize(14);
+        doc.text(chartTitleFor(id), margin, cy);
+        cy += 20;
+        const imgWidth = pageWidth - margin * 2;
+        const imgHeight = imgWidth * 0.55;
+        doc.addImage(img, "PNG", margin, cy, imgWidth, imgHeight);
+      } catch (chartErr) {
+        console.warn(`Skipping ${id} in PDF report:`, chartErr);
+      }
+    });
+
+    doc.save("datavizard_report.pdf");
+    showToast("PDF report downloaded.", "success");
+  } catch (err) {
+    console.error(err);
+    showToast("Could not generate PDF report.", "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Download PDF";
+    }
+  }
+}
+
 function convertToCSV(data) {
   if (!data || data.length === 0) return "";
   const columns = Object.keys(data[0]);
@@ -1249,10 +1914,14 @@ function downloadFile(content, fileName, mimeType) {
 
 // ========= TOASTS =========
 function showToast(message, type = "info") {
+  const container = document.getElementById("toastContainer");
+  if (!container) return;
+
   const toast = document.createElement("div");
   toast.className = `toast ${type}`;
+  toast.setAttribute("role", "status");
   toast.textContent = message;
-  document.body.appendChild(toast);
+  container.appendChild(toast);
 
   requestAnimationFrame(() => toast.classList.add("show"));
 

@@ -910,10 +910,18 @@ body {
 }
 
 /* ==================== TOAST NOTIFICATIONS ==================== */
-.toast {
+.toast-container {
   position: fixed;
   bottom: 24px;
   right: 24px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.toast {
   background: var(--pastel-blue);
   color: var(--dark-text);
   padding: 16px 24px;
@@ -923,12 +931,13 @@ body {
   opacity: 0;
   transform: translateY(20px);
   transition: all 0.3s ease;
-  z-index: 10000;
   font-weight: 700;
   display: flex;
   align-items: center;
   gap: 10px;
   letter-spacing: 0.5px;
+  pointer-events: auto;
+  max-width: 360px;
 }
 
 .toast.show {
@@ -1104,10 +1113,14 @@ body {
     padding: 40px 20px;
   }
 
-  .toast {
+  .toast-container {
     right: 12px;
     left: 12px;
     bottom: 12px;
+  }
+
+  .toast {
+    max-width: none;
   }
 
   .nav-link span {
@@ -1212,6 +1225,306 @@ body {
 }
 
 .insights-document-content {
-  white-space: pre-wrap;
   word-break: break-word;
+}
+
+.insights-document-content h2,
+.insights-document-content h3,
+.insights-document-content h4 {
+  margin: 16px 0 8px;
+  letter-spacing: 0.3px;
+}
+
+.insights-document-content h2:first-child,
+.insights-document-content h3:first-child,
+.insights-document-content h4:first-child {
+  margin-top: 0;
+}
+
+.insights-document-content ul,
+.insights-document-content ol {
+  margin: 8px 0 8px 20px;
+}
+
+.insights-document-content li {
+  margin-bottom: 4px;
+}
+
+.insights-document-content p {
+  margin: 0 0 12px;
+}
+
+/* ==================== DARK MODE ==================== */
+:root[data-theme="dark"] {
+  --dark-bg: #0A0A0A;
+}
+
+[data-theme="dark"] body {
+  background-color: #121212;
+  color: #F0F0F0;
+}
+
+[data-theme="dark"] .navbar,
+[data-theme="dark"] .card,
+[data-theme="dark"] .feature-card,
+[data-theme="dark"] .stat-card,
+[data-theme="dark"] .chart-card,
+[data-theme="dark"] .table-container,
+[data-theme="dark"] .upload-area-section,
+[data-theme="dark"] .quality-summary-item,
+[data-theme="dark"] .nav-menu {
+  background: #1E1E1E;
+  color: #F0F0F0;
+  border-color: #F0F0F0;
+}
+
+[data-theme="dark"] .navbar-brand h1 {
+  color: #0A0A0A;
+}
+
+[data-theme="dark"] .welcome-screen {
+  background: linear-gradient(135deg, #121212 0%, #1A1A1A 100%);
+}
+
+[data-theme="dark"] .welcome-header h1,
+[data-theme="dark"] .welcome-subtitle,
+[data-theme="dark"] .nav-link,
+[data-theme="dark"] .feature-card h3,
+[data-theme="dark"] .feature-card p,
+[data-theme="dark"] .section-header h2,
+[data-theme="dark"] .section-header p,
+[data-theme="dark"] .stat-value,
+[data-theme="dark"] .stat-label,
+[data-theme="dark"] .overview-header h3,
+[data-theme="dark"] .chart-title,
+[data-theme="dark"] .control-group label,
+[data-theme="dark"] .dropzone-content h3,
+[data-theme="dark"] .dropzone-content p {
+  color: #F0F0F0;
+}
+
+[data-theme="dark"] .nav-link svg {
+  stroke: #F0F0F0;
+}
+
+[data-theme="dark"] .dropzone {
+  background: #1A1A1A;
+  border-color: #F0F0F0;
+}
+
+[data-theme="dark"] .chart-select,
+[data-theme="dark"] .control-group select,
+[data-theme="dark"] #previewSearch,
+[data-theme="dark"] textarea {
+  background: #1A1A1A;
+  color: #F0F0F0;
+  border-color: #F0F0F0;
+}
+
+[data-theme="dark"] .data-table th,
+[data-theme="dark"] .data-table td {
+  color: #F0F0F0;
+  border-color: #444;
+}
+
+[data-theme="dark"] .data-table td {
+  border-right-color: #333;
+  border-bottom-color: #333;
+}
+
+[data-theme="dark"] .data-table tbody tr:hover {
+  background: #2A2A1A;
+}
+
+[data-theme="dark"] .btn,
+[data-theme="dark"] .btn-get-started,
+[data-theme="dark"] .chart-btn,
+[data-theme="dark"] .insight-card,
+[data-theme="dark"] .stat-card,
+[data-theme="dark"] .cleaning-history-list li,
+[data-theme="dark"] .quality-summary-item {
+  border-color: #F0F0F0;
+}
+
+[data-theme="dark"] .insight-card,
+[data-theme="dark"] .quality-summary-item,
+[data-theme="dark"] .cleaning-history-list li {
+  color: #F0F0F0;
+}
+
+[data-theme="dark"] .toast {
+  border-color: #F0F0F0;
+  color: #0A0A0A;
+}
+
+/* ==================== THEME TOGGLE ==================== */
+.theme-toggle {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--dark-text);
+  background: white;
+  border-radius: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  margin-left: 12px;
+  transition: all 0.3s ease;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.theme-toggle:hover {
+  background: var(--pastel-purple);
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="dark"] .theme-toggle {
+  background: #1E1E1E;
+  border-color: #F0F0F0;
+}
+
+/* ==================== ACCESSIBILITY: FOCUS STATES ==================== */
+.btn:focus-visible,
+.btn-get-started:focus-visible,
+.chart-btn:focus-visible,
+.theme-toggle:focus-visible,
+.hamburger:focus-visible,
+.nav-link:focus-visible,
+.chart-select:focus-visible,
+.control-group select:focus-visible,
+#previewSearch:focus-visible,
+textarea:focus-visible,
+.feature-card:focus-visible,
+th.sortable:focus-visible {
+  outline: 3px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+/* ==================== SHEET PICKER (multi-sheet Excel) ==================== */
+.sheet-picker {
+  background: var(--pastel-yellow);
+  border: 2px solid var(--dark-text);
+  padding: 20px;
+  margin-top: 20px;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.1);
+}
+
+.sheet-picker label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  letter-spacing: 0.3px;
+}
+
+.sheet-picker-row {
+  display: flex;
+  gap: 12px;
+}
+
+.sheet-picker-row select {
+  flex: 1;
+}
+
+/* ==================== DATA PREVIEW TOOLBAR ==================== */
+.preview-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 20px 20px 0;
+}
+
+.preview-toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#previewSearch {
+  min-width: 200px;
+}
+
+.preview-row-count {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+/* ==================== SORTABLE TABLE HEADERS ==================== */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+
+th.sortable:hover {
+  background: var(--pastel-pink);
+}
+
+th.sortable .sort-indicator {
+  margin-left: 6px;
+  font-size: 10px;
+}
+
+/* ==================== COLUMN TYPE BADGES ==================== */
+.type-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 2px 6px;
+  margin-left: 6px;
+  border: 1px solid var(--dark-text);
+  vertical-align: middle;
+}
+
+.type-badge.numeric { background: var(--pastel-blue); }
+.type-badge.categorical { background: var(--pastel-green); }
+.type-badge.date { background: var(--pastel-purple); }
+.type-badge.text { background: var(--pastel-orange); }
+
+/* ==================== EMPTY STATES (per viz section) ==================== */
+.chart-empty-state {
+  padding: 60px 20px;
+  text-align: center;
+  font-size: 14px;
+  letter-spacing: 0.3px;
+  color: var(--dark-text);
+}
+
+/* ==================== CORRELATION HEATMAP ==================== */
+.heatmap-wrapper {
+  overflow-x: auto;
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.heatmap-legend-gradient {
+  height: 12px;
+  flex: 1;
+  max-width: 200px;
+  border: 2px solid var(--dark-text);
+  background: linear-gradient(90deg, #2563eb, #ffffff, #dc2626);
+}
+
+/* ==================== OUTLIER COLUMN PICKER ==================== */
+.cleaning-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }

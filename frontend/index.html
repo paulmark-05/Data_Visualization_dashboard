@@ -7,6 +7,17 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+      // Applied before paint to avoid a light->dark flash on load.
+      (function () {
+        try {
+          if (localStorage.getItem("dv_theme") === "dark") {
+            document.documentElement.setAttribute("data-theme", "dark");
+          }
+        } catch (e) {}
+      })();
+    </script>
 </head>
 <body>
     <!-- Navigation Bar -->
@@ -61,7 +72,10 @@
                     Export
                 </a>
             </div>
-            <button class="hamburger" id="hamburger" onclick="toggleMenu()">
+            <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+                <span id="themeToggleIcon" aria-hidden="true">🌙</span>
+            </button>
+            <button class="hamburger" id="hamburger" onclick="toggleMenu()" aria-label="Toggle navigation menu" aria-expanded="false">
                 <span></span>
                 <span></span>
                 <span></span>
@@ -132,6 +146,13 @@
                         </div>
                         <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display: none">
                     </div>
+                    <div id="sheetPicker" class="sheet-picker" style="display: none">
+                        <label for="sheetSelect">This workbook has multiple sheets — choose one to load:</label>
+                        <div class="sheet-picker-row">
+                            <select id="sheetSelect" class="chart-select"></select>
+                            <button class="btn btn-primary" onclick="confirmSheetSelection()">Load Sheet</button>
+                        </div>
+                    </div>
                     <div id="uploadProgress" class="upload-progress" style="display: none">
                         <div class="progress-info">
                             <span>Uploading...</span>
@@ -175,7 +196,13 @@
                     </div>
                 </div>
                 <div class="card" style="margin-top: 24px">
-                    <h4 style="margin: 0; font-size: 16px; font-weight: 700; color: #1A1A1A; text-transform: uppercase; letter-spacing: 0.5px; padding: 20px 20px 0;">Data Preview</h4>
+                    <div class="preview-toolbar">
+                        <h4 style="margin: 0; font-size: 16px; font-weight: 700; color: #1A1A1A; text-transform: uppercase; letter-spacing: 0.5px;">Data Preview</h4>
+                        <div class="preview-toolbar-controls">
+                            <input type="text" id="previewSearch" class="chart-select" placeholder="Search rows..." oninput="renderPreviewTable()" aria-label="Search preview rows">
+                            <span id="previewRowCount" class="preview-row-count"></span>
+                        </div>
+                    </div>
                     <div class="table-container" style="margin-top: 16px; border-left: none; border-right: none; border-bottom: none;">
                         <table id="dataPreviewTable" class="data-table"></table>
                     </div>
@@ -223,7 +250,7 @@
                         <div class="chart-header">
                             <h4 class="chart-title">Categorical Distribution</h4>
                             <div class="chart-actions">
-                                <button class="chart-btn" onclick="downloadChartImage('categoricalChart')" title="Download PNG">⬇</button>
+                                <button class="chart-btn" onclick="downloadChartImage('categoricalChart')" title="Download PNG" aria-label="Download categorical chart as PNG">⬇</button>
                             </div>
                         </div>
                         <div class="chart-controls">
@@ -248,7 +275,7 @@
                         <div class="chart-header">
                             <h4 class="chart-title">Numeric Distribution</h4>
                             <div class="chart-actions">
-                                <button class="chart-btn" onclick="downloadChartImage('numericChart')" title="Download PNG">⬇</button>
+                                <button class="chart-btn" onclick="downloadChartImage('numericChart')" title="Download PNG" aria-label="Download numeric chart as PNG">⬇</button>
                             </div>
                         </div>
                         <div class="chart-controls">
@@ -273,7 +300,7 @@
                         <div class="chart-header">
                             <h4 class="chart-title">Proportion Analysis</h4>
                             <div class="chart-actions">
-                                <button class="chart-btn" onclick="downloadChartImage('pieChart')" title="Download PNG">⬇</button>
+                                <button class="chart-btn" onclick="downloadChartImage('pieChart')" title="Download PNG" aria-label="Download pie chart as PNG">⬇</button>
                             </div>
                         </div>
                         <div class="chart-controls">
@@ -298,7 +325,7 @@
                         <div class="chart-header">
                             <h4 class="chart-title">Variable Comparison</h4>
                             <div class="chart-actions">
-                                <button class="chart-btn" onclick="downloadChartImage('comparisonChart')" title="Download PNG">⬇</button>
+                                <button class="chart-btn" onclick="downloadChartImage('comparisonChart')" title="Download PNG" aria-label="Download comparison chart as PNG">⬇</button>
                             </div>
                         </div>
                         <div class="chart-controls">
@@ -333,7 +360,24 @@
                     </div>
                 </div>
 
-                <div class="no-data-message" id="noVisualizationsMessage" style="text-align: center; padding: 80px 20px; color: #1A1A1A; font-size: 16px; letter-spacing: 0.5px;">Please upload a dataset first to view visualizations.</div>
+                <!-- Correlation Heatmap -->
+                <div class="viz-section" id="heatmapSection" style="display: none; margin-bottom: 32px;">
+                    <div class="viz-section-header" style="margin-bottom: 20px;">
+                        <h3 style="font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Correlation Heatmap</h3>
+                        <p style="font-size: 13px; color: #1A1A1A; margin: 0; letter-spacing: 0.3px;">Pearson correlation between numeric columns</p>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h4 class="chart-title">Correlation Heatmap</h4>
+                            <div class="chart-actions">
+                                <button class="chart-btn" onclick="downloadChartImage('heatmapChart')" title="Download PNG" aria-label="Download correlation heatmap as PNG">⬇</button>
+                            </div>
+                        </div>
+                        <div class="chart-container" id="heatmapChart" style="min-height: 350px"></div>
+                    </div>
+                </div>
+
+                <div class="no-data-message" id="noVisualizationsMessage" style="text-align: center; padding: 80px 20px; color: #1A1A1A; font-size: 16px; letter-spacing: 0.5px; display: none;">Please upload a dataset first to view visualizations.</div>
             </div>
         </section>
 
@@ -381,8 +425,11 @@
                 <div class="export-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
                     <div class="export-card card" style="padding: 24px;">
                         <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Export Filtered Data</h3>
-                        <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Download the current filtered (or cleaned) dataset as CSV</p>
-                        <button class="btn btn-primary" onclick="exportFilteredData()" style="width: 100%; justify-content: center;">Download CSV</button>
+                        <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Download the current filtered (or cleaned) dataset</p>
+                        <div style="display: flex; gap: 12px;">
+                            <button class="btn btn-primary" onclick="exportFilteredData()" style="flex: 1; justify-content: center;">CSV</button>
+                            <button class="btn btn-primary" onclick="exportFilteredDataXLSX()" style="flex: 1; justify-content: center;">XLSX</button>
+                        </div>
                     </div>
                     <div class="export-card card" style="padding: 24px;">
                         <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Export Summary</h3>
@@ -394,10 +441,17 @@
                         <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Download automated + AI insights as JSON</p>
                         <button class="btn btn-secondary" onclick="exportInsights()" style="width: 100%; justify-content: center;">Download Insights</button>
                     </div>
+                    <div class="export-card card" style="padding: 24px;">
+                        <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">PDF Report</h3>
+                        <p style="font-size: 13px; color: #1A1A1A; margin-bottom: 16px; letter-spacing: 0.3px;">Bundle rendered charts + insights into one PDF</p>
+                        <button class="btn btn-secondary" id="exportPdfBtn" onclick="exportPDFReport()" style="width: 100%; justify-content: center;">Download PDF</button>
+                    </div>
                 </div>
             </div>
         </section>
     </div>
+
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="false"></div>
 
     <script src="config.js"></script>
     <script src="app.js"></script>
