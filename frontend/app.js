@@ -464,7 +464,15 @@ function detectColumnTypes(data) {
       return;
     }
 
-    const dateCount = sample.filter(v => !isNaN(Date.parse(v))).length;
+    // Date.parse() is notoriously permissive (e.g. Date.parse("Item 0")
+    // returns a valid timestamp in V8) - require an actual date-like
+    // shape before trusting its verdict, or plain text columns get
+    // misclassified as dates.
+    const dateLikePattern = /^\d{1,4}[-/]\d{1,2}([-/]\d{1,4})?/;
+    const dateCount = sample.filter(v => {
+      const s = String(v).trim();
+      return dateLikePattern.test(s) && !isNaN(Date.parse(s));
+    }).length;
     if (dateCount / sample.length > 0.8) {
       appState.columnTypes[col] = "date";
       return;
@@ -932,16 +940,20 @@ function undoLastCleaning() {
 }
 
 // ========= FILTERS (categorical + numeric range) =========
+const FILTER_SEARCH_THRESHOLD = 6;
+
 function generateFilters() {
   const panel = document.getElementById("filtersPanel");
   const container = document.getElementById("filtersContainer2");
+  const searchInput = document.getElementById("filterSearchInput");
   if (!panel || !container) return;
 
   const data = appState.cleanedData;
   const categoricalColumns = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "categorical");
   const numericColumns = Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "numeric");
+  const totalFilters = categoricalColumns.length + numericColumns.length;
 
-  if (categoricalColumns.length === 0 && numericColumns.length === 0) {
+  if (totalFilters === 0) {
     panel.style.display = "none";
     container.innerHTML = "";
     return;
@@ -949,11 +961,16 @@ function generateFilters() {
 
   panel.style.display = "block";
 
+  if (searchInput) {
+    searchInput.style.display = totalFilters > FILTER_SEARCH_THRESHOLD ? "block" : "none";
+    searchInput.value = "";
+  }
+
   let html = categoricalColumns.map(col => {
     const uniqueValues = [...new Set(data.map(row => row[col]).filter(v => v !== "" && v !== null && v !== undefined))].sort();
     return `
-      <div class="control-group">
-        <label>${escapeHtml(col)}</label>
+      <div class="control-group" data-filter-label="${escapeHtml(col.toLowerCase())}">
+        <label title="${escapeHtml(col)}">${escapeHtml(col)}</label>
         <select id="filter-${cssEscape(col)}" class="chart-select">
           <option value="">All</option>
           ${uniqueValues.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("")}
@@ -964,20 +981,52 @@ function generateFilters() {
 
   html += numericColumns.map(col => {
     const stats = appState.columnStats[col];
-    const minHint = stats && stats.min !== undefined ? stats.min.toFixed(2) : "Min";
-    const maxHint = stats && stats.max !== undefined ? stats.max.toFixed(2) : "Max";
+    const hasRange = stats && stats.min !== undefined && stats.max !== undefined;
+    const rangeHint = hasRange ? `Range: ${formatNumberHint(stats.min)} – ${formatNumberHint(stats.max)}` : "";
     return `
-      <div class="control-group">
-        <label>${escapeHtml(col)} (min - max)</label>
+      <div class="control-group" data-filter-label="${escapeHtml(col.toLowerCase())}">
+        <label title="${escapeHtml(col)}">${escapeHtml(col)}</label>
         <div style="display:flex; gap:6px;">
-          <input type="number" id="filter-min-${cssEscape(col)}" class="chart-select" placeholder="${minHint}" step="any" aria-label="Minimum ${escapeHtml(col)}">
-          <input type="number" id="filter-max-${cssEscape(col)}" class="chart-select" placeholder="${maxHint}" step="any" aria-label="Maximum ${escapeHtml(col)}">
+          <input type="number" id="filter-min-${cssEscape(col)}" class="chart-select" placeholder="Min" step="any" aria-label="Minimum ${escapeHtml(col)}">
+          <input type="number" id="filter-max-${cssEscape(col)}" class="chart-select" placeholder="Max" step="any" aria-label="Maximum ${escapeHtml(col)}">
         </div>
+        ${rangeHint ? `<span class="filter-range-hint">${escapeHtml(rangeHint)}</span>` : ""}
       </div>
     `;
   }).join("");
 
   container.innerHTML = html;
+}
+
+function formatNumberHint(n) {
+  return Math.abs(n - Math.round(n)) < 0.001 ? Math.round(n).toLocaleString() : n.toFixed(2);
+}
+
+function filterSidebarSearch() {
+  const searchInput = document.getElementById("filterSearchInput");
+  const container = document.getElementById("filtersContainer2");
+  if (!searchInput || !container) return;
+  const query = searchInput.value.trim().toLowerCase();
+  const groups = container.querySelectorAll(".control-group");
+  let visibleCount = 0;
+
+  groups.forEach(group => {
+    const matches = !query || (group.dataset.filterLabel || "").includes(query);
+    group.style.display = matches ? "" : "none";
+    if (matches) visibleCount++;
+  });
+
+  let emptyState = container.querySelector(".filters-empty-state");
+  if (visibleCount === 0) {
+    if (!emptyState) {
+      emptyState = document.createElement("p");
+      emptyState.className = "filters-empty-state";
+      emptyState.textContent = "No columns match your search.";
+      container.appendChild(emptyState);
+    }
+  } else if (emptyState) {
+    emptyState.remove();
+  }
 }
 
 function cssEscape(id) {
@@ -1032,6 +1081,11 @@ function applyFiltersClick() {
 function clearAllFilters() {
   document.querySelectorAll("#filtersContainer2 select").forEach(sel => { sel.value = ""; });
   document.querySelectorAll("#filtersContainer2 input[type=number]").forEach(inp => { inp.value = ""; });
+  const searchInput = document.getElementById("filterSearchInput");
+  if (searchInput) {
+    searchInput.value = "";
+    filterSidebarSearch();
+  }
   appState.activeFilters = {};
   appState.numericFilterRanges = {};
   appState.filteredData = [];
@@ -1614,14 +1668,6 @@ function renderMarkdown(text) {
   return html;
 }
 
-function stripMarkdown(text) {
-  return String(text)
-    .replace(/^#{1,6}\s*/gm, "")
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    .replace(/\*(.*?)\*/g, "$1")
-    .replace(/^[-*]\s+/gm, "- ");
-}
-
 // ========= AI INSIGHTS =========
 function renderQuickInsights() {
   if (!appState.isDataLoaded) return;
@@ -1766,11 +1812,44 @@ function exportFilteredDataXLSX() {
     showToast("No data to export.", "warning");
     return;
   }
-  const ws = XLSX.utils.json_to_sheet(data);
+  const columns = Object.keys(data[0]);
   const wb = XLSX.utils.book_new();
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws["!cols"] = autoColumnWidths(columns, data);
   XLSX.utils.book_append_sheet(wb, ws, "Data");
+
+  if (appState.isDataLoaded) {
+    const summaryRows = [
+      ["DataVizard Export Summary"],
+      [],
+      ["Generated", new Date().toLocaleString()],
+      ["File", appState.fileName],
+      ["Rows exported", data.length],
+      ["Columns", columns.length],
+      [],
+      ["Column", "Detected Type"]
+    ];
+    columns.forEach(col => summaryRows.push([col, appState.columnTypes[col] || "unknown"]));
+    const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows);
+    summaryWs["!cols"] = [{ wch: 32 }, { wch: 20 }];
+    XLSX.utils.book_append_sheet(wb, summaryWs, "Summary");
+  }
+
   XLSX.writeFile(wb, "datavizard_export.xlsx");
-  showToast("Data exported as XLSX.", "success");
+  showToast("Data exported as XLSX (Data + Summary sheets).", "success");
+}
+
+function autoColumnWidths(columns, data) {
+  const sample = data.slice(0, 200);
+  return columns.map(col => {
+    const maxLen = sample.reduce((max, row) => Math.max(max, String(row[col] ?? "").length), col.length);
+    return { wch: Math.min(Math.max(maxLen + 2, 10), 40) };
+  });
+}
+
+function padKV(key, value, width = 20) {
+  return `  ${(key + ":").padEnd(width)}${value}`;
 }
 
 function exportSummary() {
@@ -1780,23 +1859,59 @@ function exportSummary() {
   }
   const data = appState.cleanedData;
   const columns = Object.keys(data[0] || {});
+  const rule = "=".repeat(64);
+  const sub = "-".repeat(64);
   const lines = [];
-  lines.push("DataVizard - Dataset Summary");
-  lines.push(`Generated: ${new Date().toLocaleString()}`);
+
+  lines.push(rule);
+  lines.push("  DATAVIZARD - DATASET SUMMARY");
+  lines.push(rule);
   lines.push("");
-  lines.push(`File: ${appState.fileName}`);
-  lines.push(`Rows: ${data.length}`);
-  lines.push(`Columns: ${columns.length}`);
+  lines.push(padKV("Generated", new Date().toLocaleString()));
+  lines.push(padKV("File", appState.fileName || "(untitled)"));
+  lines.push(padKV("File size", formatFileSize(appState.fileSize)));
+  lines.push(padKV("Rows", data.length.toLocaleString()));
+  lines.push(padKV("Columns", columns.length));
   lines.push("");
-  lines.push("Column types:");
-  columns.forEach(col => lines.push(`  - ${col}: ${appState.columnTypes[col] || "unknown"}`));
+
+  lines.push(sub);
+  lines.push("  DATA QUALITY");
+  lines.push(sub);
+  let missingCells = 0;
+  columns.forEach(col => {
+    missingCells += data.filter(row => row[col] === "" || row[col] === null || row[col] === undefined).length;
+  });
+  const totalCells = data.length * columns.length;
+  const completeness = totalCells > 0 ? (((totalCells - missingCells) / totalCells) * 100).toFixed(1) : "100.0";
+  const duplicates = findDuplicates(data);
+  const outliers = detectOutliersWithDetails(data);
+  const outlierValueCount = Object.values(outliers).reduce((a, v) => a + v.length, 0);
+  lines.push(padKV("Completeness", `${completeness}%`));
+  lines.push(padKV("Missing cells", missingCells.toLocaleString()));
+  lines.push(padKV("Duplicate rows", duplicates.toLocaleString()));
+  lines.push(padKV("Outlier values", outlierValueCount.toLocaleString()));
   lines.push("");
-  lines.push("Cleaning actions:");
+
+  lines.push(sub);
+  lines.push("  COLUMN TYPES");
+  lines.push(sub);
+  const maxColLen = Math.max(...columns.map(c => c.length), 10);
+  columns.forEach(col => lines.push(`  ${col.padEnd(maxColLen + 3)}${(appState.columnTypes[col] || "unknown").toUpperCase()}`));
+  lines.push("");
+
+  lines.push(sub);
+  lines.push("  CLEANING LOG");
+  lines.push(sub);
   if (appState.cleaningActions.history.length === 0) {
-    lines.push("  (none)");
+    lines.push("  (no cleaning actions performed)");
   } else {
-    appState.cleaningActions.history.forEach(h => lines.push(`  - ${h}`));
+    appState.cleaningActions.history.forEach((h, i) => lines.push(`  ${String(i + 1).padStart(2, " ")}. ${h}`));
   }
+  lines.push("");
+
+  lines.push(rule);
+  lines.push("  Generated by DataVizard");
+  lines.push(rule);
 
   downloadFile(lines.join("\n"), "datavizard_summary.txt", "text/plain");
   showToast("Summary exported.", "success");
@@ -1807,9 +1922,16 @@ function exportInsights() {
     showToast("Upload a dataset first.", "warning");
     return;
   }
+  const columns = Object.keys(appState.cleanedData[0] || {});
   const payload = {
     generatedAt: new Date().toISOString(),
     fileName: appState.fileName,
+    dataset: {
+      rowCount: appState.cleanedData.length,
+      columnCount: columns.length,
+      columnTypes: appState.columnTypes
+    },
+    cleaningLog: appState.cleaningActions.history,
     quickInsights: appState.quickInsights,
     aiInsights: appState.currentInsights || null
   };
@@ -1826,6 +1948,96 @@ function chartTitleFor(id) {
     heatmapChart: "Correlation Heatmap"
   };
   return map[id] || id;
+}
+
+const PDF_BRAND = {
+  pink: [255, 179, 217],
+  blue: [179, 217, 255],
+  green: [179, 255, 217],
+  yellow: [255, 250, 179],
+  dark: [26, 26, 26],
+  muted: [110, 110, 110]
+};
+
+function stripInlineMarkdown(s) {
+  return s.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1");
+}
+
+// Renders the same markdown structure as renderMarkdown(), but as
+// styled jsPDF text (bold headers, indented bullets/numbers) instead
+// of one flat wrapped paragraph - returns the y position to continue from.
+function renderMarkdownToPDF(doc, text, x, startY, maxWidth, pageHeight, margin) {
+  let y = startY;
+  const lineHeight = 13;
+
+  function ensureSpace() {
+    if (y > pageHeight - 50) {
+      doc.addPage();
+      y = margin;
+    }
+  }
+
+  text.split(/\r?\n/).forEach(rawLine => {
+    const line = rawLine.trim();
+    if (!line) {
+      y += 6;
+      return;
+    }
+
+    let m;
+    if ((m = line.match(/^#{1,6}\s+(.*)$/))) {
+      ensureSpace();
+      doc.setFont(undefined, "bold");
+      doc.setFontSize(11.5);
+      doc.setTextColor(...PDF_BRAND.dark);
+      doc.splitTextToSize(stripInlineMarkdown(m[1]), maxWidth).forEach(l => {
+        ensureSpace();
+        doc.text(l, x, y);
+        y += 15;
+      });
+      doc.setFont(undefined, "normal");
+      doc.setFontSize(9.5);
+      y += 3;
+      return;
+    }
+
+    if ((m = line.match(/^[-*]\s+(.*)$/))) {
+      doc.splitTextToSize(stripInlineMarkdown(m[1]), maxWidth - 14).forEach((l, idx) => {
+        ensureSpace();
+        doc.text(idx === 0 ? `•  ${l}` : `    ${l}`, x, y);
+        y += lineHeight;
+      });
+      return;
+    }
+
+    if ((m = line.match(/^(\d+)\.\s+(.*)$/))) {
+      doc.splitTextToSize(stripInlineMarkdown(m[2]), maxWidth - 20).forEach((l, idx) => {
+        ensureSpace();
+        doc.text(idx === 0 ? `${m[1]}. ${l}` : `    ${l}`, x, y);
+        y += lineHeight;
+      });
+      return;
+    }
+
+    ensureSpace();
+    doc.splitTextToSize(stripInlineMarkdown(line), maxWidth).forEach(l => {
+      ensureSpace();
+      doc.text(l, x, y);
+      y += lineHeight;
+    });
+    y += 3;
+  });
+
+  return y;
+}
+
+function pdfSectionHeading(doc, text, x, y) {
+  doc.setFont(undefined, "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(...PDF_BRAND.dark);
+  doc.text(text, x, y);
+  doc.setFont(undefined, "normal");
+  doc.setFontSize(9.5);
 }
 
 async function exportPDFReport() {
@@ -1846,48 +2058,106 @@ async function exportPDFReport() {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 40;
-    let y = margin;
+    const contentWidth = pageWidth - margin * 2;
 
-    doc.setFontSize(20);
-    doc.text("DataVizard Report", margin, y);
-    y += 28;
+    // --- Branded header band ---
+    doc.setFillColor(...PDF_BRAND.pink);
+    doc.rect(0, 0, pageWidth, 76, "F");
+    doc.setDrawColor(...PDF_BRAND.dark);
+    doc.setLineWidth(2);
+    doc.line(0, 76, pageWidth, 76);
+    doc.setTextColor(...PDF_BRAND.dark);
+    doc.setFont(undefined, "bold");
+    doc.setFontSize(22);
+    doc.text("DataVizard Report", margin, 42);
+    doc.setFont(undefined, "normal");
     doc.setFontSize(10);
-    doc.text(`File: ${appState.fileName}`, margin, y);
-    y += 14;
-    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
-    y += 14;
-    const cols = Object.keys(appState.cleanedData[0] || {}).length;
-    doc.text(`Rows: ${appState.cleanedData.length}   Columns: ${cols}`, margin, y);
-    y += 26;
+    doc.text(`${appState.fileName || "(untitled)"}  •  Generated ${new Date().toLocaleString()}`, margin, 60);
 
-    doc.setFontSize(14);
-    doc.text("Quick Insights", margin, y);
-    y += 18;
-    doc.setFontSize(10);
-    appState.quickInsights.forEach(ins => {
-      const wrapped = doc.splitTextToSize(`- ${ins.title}: ${ins.description}`, pageWidth - margin * 2);
-      wrapped.forEach(l => {
-        if (y > pageHeight - 60) { doc.addPage(); y = margin; }
-        doc.text(l, margin, y);
-        y += 14;
-      });
+    let y = 104;
+
+    // --- Dataset overview table ---
+    const cleanedData = appState.cleanedData;
+    const columns = Object.keys(cleanedData[0] || {});
+    let missingCells = 0;
+    columns.forEach(col => {
+      missingCells += cleanedData.filter(row => row[col] === "" || row[col] === null || row[col] === undefined).length;
     });
-    y += 12;
+    const totalCells = cleanedData.length * columns.length;
+    const completeness = totalCells > 0 ? (((totalCells - missingCells) / totalCells) * 100).toFixed(1) : "100.0";
+    const duplicates = findDuplicates(cleanedData);
 
+    pdfSectionHeading(doc, "Dataset Overview", margin, y);
+    doc.autoTable({
+      startY: y + 10,
+      head: [["Metric", "Value"]],
+      body: [
+        ["Rows", cleanedData.length.toLocaleString()],
+        ["Columns", columns.length],
+        ["File size", formatFileSize(appState.fileSize)],
+        ["Data completeness", `${completeness}%`],
+        ["Duplicate rows", duplicates.toLocaleString()]
+      ],
+      theme: "grid",
+      margin: { left: margin, right: margin },
+      styles: { fontSize: 9, cellPadding: 6, lineColor: PDF_BRAND.dark, lineWidth: 0.75, textColor: PDF_BRAND.dark },
+      headStyles: { fillColor: PDF_BRAND.blue, textColor: PDF_BRAND.dark, fontStyle: "bold" }
+    });
+    y = doc.lastAutoTable.finalY + 26;
+
+    // --- Quick insights table ---
+    if (appState.quickInsights.length > 0) {
+      if (y > pageHeight - 100) {
+        doc.addPage();
+        y = margin;
+      }
+      pdfSectionHeading(doc, "Quick Insights", margin, y);
+      doc.autoTable({
+        startY: y + 10,
+        head: [["Insight", "Detail"]],
+        body: appState.quickInsights.map(ins => [ins.title, ins.description]),
+        theme: "grid",
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 9, cellPadding: 6, lineColor: PDF_BRAND.dark, lineWidth: 0.75, textColor: PDF_BRAND.dark },
+        headStyles: { fillColor: PDF_BRAND.green, textColor: PDF_BRAND.dark, fontStyle: "bold" },
+        columnStyles: { 0: { cellWidth: 140, fontStyle: "bold" } }
+      });
+      y = doc.lastAutoTable.finalY + 26;
+    }
+
+    // --- AI-generated insights (real markdown structure, not one flat paragraph) ---
     if (appState.currentInsights && appState.currentInsights.insights) {
-      if (y > pageHeight - 120) { doc.addPage(); y = margin; }
-      doc.setFontSize(14);
-      doc.text("AI-Generated Insights", margin, y);
+      if (y > pageHeight - 120) {
+        doc.addPage();
+        y = margin;
+      }
+      pdfSectionHeading(doc, "AI-Generated Insights", margin, y);
       y += 18;
-      doc.setFontSize(10);
-      const wrapped = doc.splitTextToSize(stripMarkdown(appState.currentInsights.insights), pageWidth - margin * 2);
-      wrapped.forEach(l => {
-        if (y > pageHeight - 60) { doc.addPage(); y = margin; }
-        doc.text(l, margin, y);
-        y += 14;
+      doc.setTextColor(...PDF_BRAND.dark);
+      y = renderMarkdownToPDF(doc, appState.currentInsights.insights, margin, y, contentWidth, pageHeight, margin);
+      y += 14;
+    }
+
+    // --- Cleaning log table ---
+    if (appState.cleaningActions.history.length > 0) {
+      if (y > pageHeight - 100) {
+        doc.addPage();
+        y = margin;
+      }
+      pdfSectionHeading(doc, "Cleaning Log", margin, y);
+      doc.autoTable({
+        startY: y + 10,
+        head: [["#", "Action"]],
+        body: appState.cleaningActions.history.map((h, i) => [i + 1, h]),
+        theme: "grid",
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 9, cellPadding: 6, lineColor: PDF_BRAND.dark, lineWidth: 0.75, textColor: PDF_BRAND.dark },
+        headStyles: { fillColor: PDF_BRAND.yellow, textColor: PDF_BRAND.dark, fontStyle: "bold" },
+        columnStyles: { 0: { cellWidth: 24 } }
       });
     }
 
+    // --- Charts, one per page ---
     const chartIds = ["categoricalChart", "numericChart", "pieChart", "comparisonChart", "heatmapChart"];
     chartIds.forEach(id => {
       const inst = appState.chartInstances[id];
@@ -1896,17 +2166,24 @@ async function exportPDFReport() {
         const img = inst.toBase64Image();
         if (!img || !img.startsWith("data:image")) return;
         doc.addPage();
-        let cy = margin;
-        doc.setFontSize(14);
-        doc.text(chartTitleFor(id), margin, cy);
-        cy += 20;
-        const imgWidth = pageWidth - margin * 2;
+        pdfSectionHeading(doc, chartTitleFor(id), margin, margin + 10);
+        const imgWidth = contentWidth;
         const imgHeight = imgWidth * 0.55;
-        doc.addImage(img, "PNG", margin, cy, imgWidth, imgHeight);
+        doc.addImage(img, "PNG", margin, margin + 24, imgWidth, imgHeight);
       } catch (chartErr) {
         console.warn(`Skipping ${id} in PDF report:`, chartErr);
       }
     });
+
+    // --- Footer: page numbers on every page ---
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFont(undefined, "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...PDF_BRAND.muted);
+      doc.text(`DataVizard Report  •  Page ${i} of ${totalPages}`, margin, pageHeight - 20);
+    }
 
     doc.save("datavizard_report.pdf");
     showToast("PDF report downloaded.", "success");

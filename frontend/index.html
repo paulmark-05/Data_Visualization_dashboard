@@ -8,6 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
     <script>
       // Applied before paint to avoid a light->dark flash on load.
       (function () {
@@ -239,6 +240,7 @@
                                 <button id="applyFiltersBtn2" class="btn btn-primary" onclick="applyFiltersClick()">Apply</button>
                                 <button id="clearFiltersBtn2" class="btn btn-secondary" onclick="clearAllFilters()">Clear</button>
                             </div>
+                            <input type="text" id="filterSearchInput" class="chart-select" placeholder="Search columns..." oninput="filterSidebarSearch()" aria-label="Search filter columns" style="display: none;">
                             <div id="filtersContainer2" class="filters-grid-inline"></div>
                         </div>
                     </aside>

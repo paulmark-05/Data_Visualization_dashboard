@@ -791,6 +791,20 @@ body {
   font-weight: 600;
   letter-spacing: 0.3px;
   transition: all 0.3s ease;
+  /* Same min-width:auto trap as grid items, but for flex/block
+     contexts - without this, paired inputs (e.g. the min/max numeric
+     filter row) refuse to shrink below their intrinsic width. */
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.control-group > div {
+  min-width: 0;
+}
+
+.control-group > div > input[type="number"] {
+  flex: 1 1 0%;
+  min-width: 0;
 }
 
 .control-group select:hover, .chart-select:hover {
@@ -822,37 +836,42 @@ body {
    horizontal room for its axis labels, so it spans 2 columns. */
 .viz-layout {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
 
 @media (min-width: 1024px) {
   .viz-layout {
-    grid-template-columns: 280px 1fr;
+    grid-template-columns: 280px minmax(0, 1fr);
   }
 
   .filters-sidebar {
     position: sticky;
     top: 90px;
+    max-height: calc(100vh - 110px);
   }
 }
 
 .charts-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  /* minmax(0, 1fr), not plain 1fr: grid items default to min-width:
+     auto, which refuses to shrink below their content's intrinsic
+     width (e.g. the 4-dropdown comparison chart controls) - that was
+     forcing this whole column wider than the viewport on mobile. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
 }
 
 @media (min-width: 768px) {
   .charts-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 1200px) {
   .charts-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -884,9 +903,21 @@ body {
   opacity: 0.75;
 }
 
-/* ==================== FILTERS SIDEBAR ==================== */
+/* ==================== FILTERS SIDEBAR ====================
+   Fixed header/search/actions, scrollable filter list. Without this,
+   a wide dataset (many numeric columns) makes the sidebar grow far
+   taller than the charts grid next to it - since the grid sizes each
+   row to its tallest column, that leaves a large blank gap under the
+   (much shorter) charts. Capping the sidebar height and scrolling the
+   list internally keeps both columns visually balanced regardless of
+   how many filterable columns exist. */
 .filters-sidebar {
   padding: 0;
+  /* Safety clip in case anything still overflows the max-height set
+     in the @media block above - the real scroll boundary is on
+     .filters-grid-inline below, which doesn't depend on fragile
+     multi-level flex-shrink propagation to size correctly. */
+  overflow: hidden;
 }
 
 .filters-sidebar .filters-header {
@@ -912,7 +943,7 @@ body {
 .filters-sidebar .filters-actions-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .filters-sidebar .filters-actions-row .btn {
@@ -921,10 +952,42 @@ body {
   padding: 10px 12px;
 }
 
+#filterSearchInput {
+  margin-bottom: 12px;
+  width: 100%;
+}
+
 .filters-sidebar .filters-grid-inline {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.filters-sidebar .control-group label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.filter-range-hint {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.65;
+  letter-spacing: 0.2px;
+  text-transform: none;
+  margin-top: 4px;
+}
+
+.filters-empty-state {
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  opacity: 0.7;
+  padding: 8px 0;
 }
 
 /* ==================== LOADING SPINNER (AI actions) ==================== */
