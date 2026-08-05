@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>DataVizard – Neo‑Brutalist Data Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js & XLSX -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="app-shell">
+        <!-- SIDEBAR NAV -->
+        <aside class="sidebar">
+            <div class="logo-tile">
+                <div class="logo-mark">DV</div>
+                <div class="logo-text">
+                    <span>DataVizard</span>
+                    <small>Pastel Neo‑Brutalism Lab</small>
+                </div>
+            </div>
+
+            <nav class="nav">
+                <a href="#" class="nav-link active" data-section="dashboard" onclick="switchSection(event, 'dashboard')">📊 Dashboard</a>
+                <a href="#" class="nav-link" data-section="cleaning" onclick="switchSection(event, 'cleaning')">🧹 Cleaning</a>
+                <a href="#" class="nav-link" data-section="visualizations" onclick="switchSection(event, 'visualizations')">📈 Visuals</a>
+                <a href="#" class="nav-link" data-section="insights" onclick="switchSection(event, 'insights')">🤖 AI Insights</a>
+                <a href="#" class="nav-link" data-section="export" onclick="switchSection(event, 'export')">📤 Export</a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <span class="pill pill-green">Gemini‑powered</span>
+                <span class="pill pill-outline">Client + FastAPI</span>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="main">
+            <!-- DASHBOARD -->
+            <section class="content-section active" id="section-dashboard">
+                <header class="section-header">
+                    <div>
+                        <h1>Upload. Clean. Visualise. Explain.</h1>
+                        <p>Drop a CSV / Excel, let DataVizard do the grunt work.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">+ Upload file</button>
+                </header>
+
+                <div class="grid-2">
+                    <div class="card upload-card">
+                        <h2>Data Ingestion</h2>
+                        <p>Drag & drop or click to select a file.</p>
+                        <div id="dropzone" class="dropzone">
+                            <div class="dropzone-inner">
+                                <div class="dropzone-icon">⬆</div>
+                                <div class="dropzone-text">
+                                    <strong>Drop CSV / Excel here</strong>
+                                    <span>or click to browse…</span>
+                                </div>
+                            </div>
+                            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden />
+                        </div>
+                        <div id="uploadProgress" class="upload-progress" style="display:none;">
+                            <div class="upload-progress-top">
+                                <span id="progressText">Reading file…</span>
+                                <span id="progressValue">0%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div id="progressFill" class="progress-fill"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card stats-card">
+                        <h2>Dataset Snapshot</h2>
+                        <div class="stats-grid">
+                            <div class="stat">
+                                <span class="stat-label">File name</span>
+                                <span id="statFileName" class="stat-value">–</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Rows</span>
+                                <span id="statRows" class="stat-value">–</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Columns</span>
+                                <span id="statColumns" class="stat-value">–</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Size</span>
+                                <span id="statSize" class="stat-value">–</span>
+                            </div>
+                        </div>
+                        <div class="preview-wrapper">
+                            <h3>Data preview</h3>
+                            <div id="dataPreview" class="data-preview"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CLEANING -->
+            <section class="content-section" id="section-cleaning">
+                <header class="section-header">
+                    <div>
+                        <h1>Data Cleaning</h1>
+                        <p>Handle missing values, duplicates and outliers. Every action is logged.</p>
+                    </div>
+                    <button class="btn btn-secondary" onclick="exportCleaningLog()">⬇ Cleaning log</button>
+                </header>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <h2>Cleaning Actions</h2>
+                        <div class="cleaning-actions">
+                            <button class="btn btn-primary" onclick="removeDuplicates()">🧬 Remove duplicates</button>
+                            <button class="btn btn-primary" onclick="fillMissing()">💧 Fill missing</button>
+                            <button class="btn btn-primary" onclick="removeOutliers()">🚫 Remove outliers</button>
+                            <button class="btn btn-ghost" onclick="undoLastCleaning()">↺ Undo last</button>
+                        </div>
+
+                        <div class="quality-metrics" id="dataQualityContainer"></div>
+                    </div>
+                    <div class="card">
+                        <h2>Cleaning Log</h2>
+                        <div id="cleaningHistoryPanel" class="log-panel"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VISUALIZATIONS -->
+            <section class="content-section" id="section-visualizations">
+                <header class="section-header">
+                    <div>
+                        <h1>Visual Explorer</h1>
+                        <p>Configure charts by column, type and filters.</p>
+                    </div>
+                </header>
+
+                <div class="visual-config card">
+                    <div class="field">
+                        <label>X axis</label>
+                        <select id="vizXColumn"></select>
+                    </div>
+                    <div class="field">
+                        <label>Y axis</label>
+                        <select id="vizYColumn"></select>
+                    </div>
+                    <div class="field">
+                        <label>Chart type</label>
+                        <select id="vizChartType">
+                            <option value="bar">Bar</option>
+                            <option value="line">Line</option>
+                            <option value="pie">Pie</option>
+                            <option value="scatter">Scatter</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="renderMainChart()">Render chart</button>
+                </div>
+
+                <div class="card chart-card">
+                    <canvas id="mainChart"></canvas>
+                </div>
+            </section>
+
+            <!-- AI INSIGHTS -->
+            <section class="content-section" id="section-insights">
+                <header class="section-header">
+                    <div>
+                        <h1>AI‑Generated Insights</h1>
+                        <p>Gemini looks at your data and explains what matters.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="generateInsights()">↻ Regenerate</button>
+                </header>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <h2>Insights Document</h2>
+                        <textarea id="insightsRequest" class="insights-input" placeholder="Optional: describe what you care about (churn, sales, anomalies…)"></textarea>
+                        <div id="insightsDocumentContent" class="insights-document-content"></div>
+                    </div>
+                    <div class="card">
+                        <h2>Quick Insight Tiles</h2>
+                        <div id="quickInsightsGrid" class="insights-grid"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- EXPORT -->
+            <section class="content-section" id="section-export">
+                <header class="section-header">
+                    <div>
+                        <h1>Export Centre</h1>
+                        <p>Ship the cleaned data, logs and AI report downstream.</p>
+                    </div>
+                </header>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <h2>Export cleaned data</h2>
+                        <p>Download the fully cleaned dataset as CSV.</p>
+                        <button class="btn btn-primary" onclick="exportCleanedData()">⬇ Cleaned CSV</button>
+                    </div>
+                    <div class="card">
+                        <h2>Export AI report</h2>
+                        <p>Download AI insights as a text report.</p>
+                        <button class="btn btn-secondary" onclick="exportInsights()">⬇ Insights.txt</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Dependencies -->
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
