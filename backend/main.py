@@ -3,8 +3,9 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import pandas as pd
@@ -31,6 +32,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+MAX_REQUEST_BYTES = 2 * 1024 * 1024  # 2MB - /api/insights only ever needs a few hundred sample rows
+
+
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_REQUEST_BYTES:
+        return JSONResponse(status_code=413, content={"detail": "Request body too large."})
+    return await call_next(request)
+
 
 class InsightsRequest(BaseModel):
     question: str
@@ -43,6 +54,30 @@ class InsightsResponse(BaseModel):
     row_count: int
     column_count: int
     summary: Dict[str, Any]
+
+
+# /api/insights has open CORS and no auth, so these caps are defense against
+# an oversized or abusive direct API call (bypassing the frontend's own
+# 200-row cap) blowing up the Gemini prompt size/cost or pandas memory use.
+MAX_SAMPLE_ROWS = 200
+MAX_COLUMNS = 100
+MAX_CELL_CHARS = 500
+
+
+def clamp_payload(payload: InsightsRequest) -> InsightsRequest:
+    columns = payload.columns[:MAX_COLUMNS]
+    allowed = set(columns)
+    rows = []
+    for row in payload.sample_rows[:MAX_SAMPLE_ROWS]:
+        clamped_row = {}
+        for k, v in row.items():
+            if k not in allowed:
+                continue
+            if isinstance(v, str) and len(v) > MAX_CELL_CHARS:
+                v = v[:MAX_CELL_CHARS] + "…"
+            clamped_row[k] = v
+        rows.append(clamped_row)
+    return InsightsRequest(question=payload.question[:2000], columns=columns, sample_rows=rows)
 
 
 @app.get("/health")
@@ -68,6 +103,7 @@ def api_insights(payload: InsightsRequest):
             summary={},
         )
 
+    payload = clamp_payload(payload)
     df = pd.DataFrame(payload.sample_rows)
 
     # Basic profiling

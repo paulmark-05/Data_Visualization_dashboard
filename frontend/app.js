@@ -2319,13 +2319,29 @@ async function exportPDFReport() {
   }
 }
 
+// Excel/Sheets treat a CSV cell starting with =, +, -, @ (or a tab/CR)
+// as a formula to evaluate on open, regardless of surrounding quotes -
+// a malicious uploaded value like =cmd|'/c calc'!A0 would silently
+// re-export and later execute. Prefixing with a single quote forces
+// spreadsheet apps to render it as literal text. Pure numeric strings
+// (including negatives) are left untouched so exported numbers stay numbers.
+function sanitizeCsvCell(value) {
+  const s = String(value ?? "");
+  if (s === "") return s;
+  const isPureNumber = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(s.trim());
+  if (!isPureNumber && /^[=+\-@\t\r]/.test(s)) {
+    return "'" + s;
+  }
+  return s;
+}
+
 function convertToCSV(data) {
   if (!data || data.length === 0) return "";
   const columns = Object.keys(data[0]);
-  let csv = columns.join(",") + "\n";
+  let csv = columns.map(c => sanitizeCsvCell(c)).join(",") + "\n";
   data.forEach(row => {
     const line = columns.map(c => {
-      const v = row[c] === undefined || row[c] === null ? "" : String(row[c]).replace(/"/g, '""');
+      const v = row[c] === undefined || row[c] === null ? "" : sanitizeCsvCell(row[c]).replace(/"/g, '""');
       return `"${v}"`;
     }).join(",");
     csv += line + "\n";
