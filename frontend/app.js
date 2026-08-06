@@ -317,7 +317,7 @@ function processFile(file) {
       }
 
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      finalizeUpload(XLSX.utils.sheet_to_json(sheet));
+      finalizeUpload(recordsFromSheet(sheet));
     } catch (err) {
       console.error(err);
       showToast("Error parsing file: " + err.message, "error");
@@ -343,7 +343,7 @@ function confirmSheetSelection() {
   if (!wb || !sheetSelect || !sheetSelect.value) return;
 
   const sheet = wb.Sheets[sheetSelect.value];
-  const jsonData = XLSX.utils.sheet_to_json(sheet);
+  const jsonData = recordsFromSheet(sheet);
   appState.pendingWorkbook = null;
 
   const sheetPicker = document.getElementById("sheetPicker");
@@ -443,21 +443,76 @@ function parseCSVRows(text) {
 function parseCSV(text) {
   const lines = parseCSVRows(text);
   if (lines.length === 0) return [];
-  const headers = parseCSVLine(lines[0]).map(h => h.trim());
-  const rows = [];
+  const headerRow = parseCSVLine(lines[0]).map(h => h.trim());
+  const dataRows = lines.slice(1).map(line => parseCSVLine(line).map(v => v.trim()));
+  return buildRecordsFromRows(headerRow, dataRows);
+}
 
-  for (let i = 1; i < lines.length; i++) {
-    const cols = parseCSVLine(lines[i]);
-    const row = {};
-    headers.forEach((h, idx) => {
-      row[h] = cols[idx] !== undefined ? cols[idx].trim() : "";
-    });
-    rows.push(row);
-  }
-  return rows;
+// Duplicate column names (e.g. a CSV/Excel export with two columns
+// both literally named "name") would otherwise collide as the same
+// object key, silently discarding every column but the last with
+// that name. Auto-suffix duplicates the way Excel/pandas do instead.
+function dedupeHeaders(headers) {
+  const seen = new Map();
+  return headers.map(h => {
+    const name = String(h ?? "").trim() || "Column";
+    const count = seen.get(name) || 0;
+    seen.set(name, count + 1);
+    return count === 0 ? name : `${name} (${count + 1})`;
+  });
+}
+
+// Shared by both the CSV parser and the Excel sheet loader (which
+// reads via {header:1} for the same dedup treatment) so duplicate
+// headers and ragged rows are handled identically regardless of
+// source format.
+function buildRecordsFromRows(headerRow, dataRows) {
+  const headers = dedupeHeaders(headerRow);
+  return dataRows
+    .map(cols => {
+      const row = {};
+      headers.forEach((h, idx) => {
+        const v = cols[idx];
+        row[h] = v === undefined || v === null ? "" : (typeof v === "string" ? v.trim() : v);
+      });
+      return row;
+    })
+    .filter(row => Object.values(row).some(v => v !== "" && v !== null && v !== undefined));
+}
+
+function recordsFromSheet(sheet) {
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  if (rows.length === 0) return [];
+  return buildRecordsFromRows(rows[0], rows.slice(1));
 }
 
 // ========= COLUMN TYPING & STATS =========
+
+// plain parseFloat() misses extremely common real-world formatting -
+// "$1,200.50", "1,234", "(500)" for a negative, "12%" - all of which
+// a person would read as numbers on sight. Used for column type
+// detection and every numeric aggregation/chart/filter; NOT used for
+// display values, which keep their original formatting untouched.
+function parseNumeric(v) {
+  if (typeof v === "number") return v;
+  if (v === null || v === undefined) return NaN;
+  let s = String(v).trim();
+  if (s === "") return NaN;
+
+  let negative = false;
+  if (/^\(.*\)$/.test(s)) {
+    negative = true;
+    s = s.slice(1, -1).trim();
+  }
+
+  s = s.replace(/[$€£¥₹,\s%]/g, "");
+  if (s === "" || s === "-" || s === "+") return NaN;
+
+  const n = Number(s);
+  if (isNaN(n)) return NaN;
+  return negative ? -n : n;
+}
+
 function detectColumnTypes(data) {
   if (!data || data.length === 0) return;
   const columns = Object.keys(data[0]);
@@ -471,7 +526,7 @@ function detectColumnTypes(data) {
       return;
     }
 
-    const numericCount = sample.filter(v => !isNaN(parseFloat(v)) && isFinite(v)).length;
+    const numericCount = sample.filter(v => isFinite(parseNumeric(v))).length;
     if (numericCount / sample.length > 0.8) {
       appState.columnTypes[col] = "numeric";
       return;
@@ -526,7 +581,7 @@ function computeColumnStats(data) {
     stats.uniqueCount = new Set(values).size;
 
     if (appState.columnTypes[col] === "numeric") {
-      const numValues = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
+      const numValues = values.map(v => parseNumeric(v)).filter(v => isFinite(v));
       if (numValues.length > 0) {
         stats.min = Math.min(...numValues);
         stats.max = Math.max(...numValues);
@@ -660,10 +715,10 @@ function renderPreviewTable() {
     filtered = [...filtered].sort((a, b) => {
       const av = a[sortCol];
       const bv = b[sortCol];
-      const an = parseFloat(av);
-      const bn = parseFloat(bv);
+      const an = parseNumeric(av);
+      const bn = parseNumeric(bv);
       let cmp;
-      if (!isNaN(an) && !isNaN(bn) && String(av ?? "").trim() !== "" && String(bv ?? "").trim() !== "") {
+      if (isFinite(an) && isFinite(bn) && String(av ?? "").trim() !== "" && String(bv ?? "").trim() !== "") {
         cmp = an - bn;
       } else {
         cmp = String(av ?? "").localeCompare(String(bv ?? ""));
@@ -727,7 +782,7 @@ function detectOutliersWithDetails(data, onlyColumn) {
     : Object.keys(appState.columnTypes).filter(c => appState.columnTypes[c] === "numeric");
 
   numericCols.forEach(col => {
-    const values = data.map(row => parseFloat(row[col])).filter(v => !isNaN(v));
+    const values = data.map(row => parseNumeric(row[col])).filter(v => isFinite(v));
     if (values.length < 4) return;
 
     const sorted = [...values].sort((a, b) => a - b);
@@ -872,7 +927,7 @@ function fillMissing() {
 
   Object.keys(data[0]).forEach(col => {
     if (appState.columnTypes[col] === "numeric") {
-      const vals = data.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
+      const vals = data.map(r => parseNumeric(r[col])).filter(v => isFinite(v));
       if (vals.length === 0) return;
       const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
       data.forEach(row => {
@@ -911,7 +966,7 @@ function removeOutliers(column) {
   const outlierRowIndexes = new Set();
 
   Object.keys(outliers).forEach(col => {
-    const values = data.map(row => parseFloat(row[col])).filter(v => !isNaN(v));
+    const values = data.map(row => parseNumeric(row[col])).filter(v => isFinite(v));
     const sorted = [...values].sort((a, b) => a - b);
     const q1 = sorted[Math.floor(sorted.length * 0.25)];
     const q3 = sorted[Math.floor(sorted.length * 0.75)];
@@ -920,8 +975,8 @@ function removeOutliers(column) {
     const upper = q3 + 1.5 * iqr;
 
     data.forEach((row, idx) => {
-      const val = parseFloat(row[col]);
-      if (!isNaN(val) && (val < lower || val > upper)) outlierRowIndexes.add(idx);
+      const val = parseNumeric(row[col]);
+      if (isFinite(val) && (val < lower || val > upper)) outlierRowIndexes.add(idx);
     });
   });
 
@@ -1108,8 +1163,8 @@ function reapplyActiveFilters() {
     const categoricalMatch = Object.keys(appState.activeFilters).every(col => row[col] === appState.activeFilters[col]);
     if (!categoricalMatch) return false;
     return Object.keys(appState.numericFilterRanges).every(col => {
-      const val = parseFloat(row[col]);
-      if (isNaN(val)) return false;
+      const val = parseNumeric(row[col]);
+      if (!isFinite(val)) return false;
       const { min, max } = appState.numericFilterRanges[col];
       if (min !== null && val < min) return false;
       if (max !== null && val > max) return false;
@@ -1264,7 +1319,7 @@ function renderNumericChart(columnName) {
   document.getElementById("numericColumnSelect").value = columnName;
   const data = activeData();
 
-  const values = data.map(row => parseFloat(row[columnName])).filter(v => !isNaN(v));
+  const values = data.map(row => parseNumeric(row[columnName])).filter(v => isFinite(v));
   if (values.length === 0) {
     showChartEmptyState("numericChart", "No numeric values available for this column.");
     return;
@@ -1391,8 +1446,8 @@ function renderComparisonChart() {
       data: {
         datasets: groupKeys.map((key, i) => ({
           label: groupBy ? key : `${yColumn} vs ${xColumn}`,
-          data: groups[key].map(row => ({ x: parseFloat(row[xColumn]), y: parseFloat(row[yColumn]) }))
-            .filter(p => !isNaN(p.x) && !isNaN(p.y)).slice(0, 500),
+          data: groups[key].map(row => ({ x: parseNumeric(row[xColumn]), y: parseNumeric(row[yColumn]) }))
+            .filter(p => isFinite(p.x) && isFinite(p.y)).slice(0, 500),
           backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
           borderColor: "#1A1A1A",
           pointRadius: 4
@@ -1413,7 +1468,7 @@ function renderComparisonChart() {
         labels: allLabels,
         datasets: groupKeys.map((key, i) => {
           const byX = {};
-          groups[key].forEach(r => { byX[String(r[xColumn])] = parseFloat(r[yColumn]) || 0; });
+          groups[key].forEach(r => { byX[String(r[xColumn])] = parseNumeric(r[yColumn]) || 0; });
           return {
             label: groupBy ? key : yColumn,
             data: allLabels.map(l => byX[l] ?? null),
@@ -1443,8 +1498,8 @@ function renderComparisonChart() {
           const agg = {};
           groups[key].forEach(row => {
             const xVal = String(row[xColumn]);
-            const yVal = parseFloat(row[yColumn]);
-            if (isNaN(yVal)) return;
+            const yVal = parseNumeric(row[yColumn]);
+            if (!isFinite(yVal)) return;
             if (!agg[xVal]) agg[xVal] = { sum: 0, count: 0 };
             agg[xVal].sum += yVal;
             agg[xVal].count++;
@@ -1537,8 +1592,8 @@ function renderCorrelationHeatmap() {
         continue;
       }
       const pairs = data
-        .map(r => [parseFloat(r[numericCols[i]]), parseFloat(r[numericCols[j]])])
-        .filter(p => !isNaN(p[0]) && !isNaN(p[1]));
+        .map(r => [parseNumeric(r[numericCols[i]]), parseNumeric(r[numericCols[j]])])
+        .filter(p => isFinite(p[0]) && isFinite(p[1]));
       matrix[i].push(pairs.length < 2 ? 0 : pearsonCorrelation(pairs.map(p => p[0]), pairs.map(p => p[1])));
     }
   }
