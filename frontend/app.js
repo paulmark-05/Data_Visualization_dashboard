@@ -27,6 +27,7 @@ let appState = {
     undoStack: []
   },
   currentInsights: null,
+  insightsChatHistory: [],
   quickInsights: []
 };
 
@@ -87,6 +88,9 @@ function saveSession() {
         history: appState.cleaningActions.history
       },
       currentInsights: appState.currentInsights,
+      // Cap what we persist so a long chat session doesn't grow
+      // localStorage without bound.
+      insightsChatHistory: appState.insightsChatHistory.slice(-20),
       quickInsights: appState.quickInsights
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot));
@@ -116,6 +120,7 @@ function loadSession() {
       undoStack: []
     };
     appState.currentInsights = snapshot.currentInsights || null;
+    appState.insightsChatHistory = snapshot.insightsChatHistory || [];
     appState.quickInsights = snapshot.quickInsights || [];
     appState.filteredData = [];
     appState.filtersActive = false;
@@ -163,6 +168,7 @@ function switchSection(e, sectionName) {
     setTimeout(initializeVisualizations, 20);
   } else if (sectionName === "insights") {
     setTimeout(renderQuickInsights, 20);
+    setTimeout(renderInsightsChatThread, 20);
   } else if (sectionName === "quality") {
     setTimeout(generateDataQuality, 20);
   }
@@ -238,6 +244,7 @@ function resetUpload() {
   appState.previewSort = { sortCol: "", sortDir: "asc" };
   appState.cleaningActions = { removedDuplicates: 0, filledMissing: 0, removedOutliers: 0, history: [], undoStack: [] };
   appState.currentInsights = null;
+  appState.insightsChatHistory = [];
   appState.quickInsights = [];
 
   Object.keys(appState.chartInstances).forEach(id => {
@@ -256,11 +263,24 @@ function resetUpload() {
   const searchInput = document.getElementById("previewSearch");
   if (searchInput) searchInput.value = "";
 
-  const generated = document.getElementById("generatedInsights");
-  if (generated) generated.style.display = "none";
+  renderInsightsChatThread();
 
   clearSession();
   showToast("Ready for a new upload.", "info");
+}
+
+async function loadSampleData() {
+  showUploadArea();
+  try {
+    const res = await fetch("sample-data.csv");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    const file = new File([text], "sample-sales-data.csv", { type: "text/csv" });
+    processFile(file);
+  } catch (err) {
+    console.error(err);
+    showToast("Could not load sample data.", "error");
+  }
 }
 
 function processFile(file) {
@@ -378,6 +398,7 @@ function finalizeUpload(jsonData) {
   appState.previewSort = { sortCol: "", sortDir: "asc" };
   appState.cleaningActions = { removedDuplicates: 0, filledMissing: 0, removedOutliers: 0, history: [], undoStack: [] };
   appState.currentInsights = null;
+  appState.insightsChatHistory = [];
 
   detectColumnTypes(jsonData);
   computeColumnStats(jsonData);
@@ -1855,6 +1876,12 @@ function renderQuickInsights() {
   });
 }
 
+function askSuggestedQuestion(question) {
+  const promptInput = document.getElementById("insightsRequest");
+  if (promptInput) promptInput.value = question;
+  generateInsightsDocument();
+}
+
 async function generateInsightsDocument() {
   if (!appState.isDataLoaded) {
     showToast("Upload a dataset first.", "warning");
@@ -1864,16 +1891,21 @@ async function generateInsightsDocument() {
   const btn = document.getElementById("generateInsightsBtn");
   const promptInput = document.getElementById("insightsRequest");
   const userPrompt = promptInput ? promptInput.value.trim() : "";
+  const question = userPrompt || "Give 3-5 business-relevant insights and risks for this dataset.";
+
+  appState.insightsChatHistory.push({ role: "user", text: question, at: new Date().toISOString() });
+  if (promptInput) promptInput.value = "";
+  renderInsightsChatThread({ pending: true });
 
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner" aria-hidden="true"></span>Generating...';
+    btn.innerHTML = '<span class="spinner" aria-hidden="true"></span>Asking...';
   }
 
   try {
     const data = activeData();
     const payload = {
-      question: userPrompt || "Give 3-5 business-relevant insights and risks for this dataset.",
+      question,
       columns: Object.keys(data[0] || {}),
       sample_rows: data.slice(0, 200)
     };
@@ -1887,33 +1919,59 @@ async function generateInsightsDocument() {
     if (!res.ok) {
       const txt = await res.text();
       console.error("Backend error:", txt);
+      appState.insightsChatHistory.push({ role: "assistant", error: true, text: "Backend insights request failed. Check server logs.", at: new Date().toISOString() });
       showToast("Backend insights failed. Check server logs.", "error");
       return;
     }
 
     const json = await res.json();
     appState.currentInsights = json;
+    appState.insightsChatHistory.push({
+      role: "assistant",
+      text: json.insights || "(backend returned no insights text)",
+      at: new Date().toISOString()
+    });
 
-    const doc = document.getElementById("insightsDocumentContent");
-    if (doc) doc.innerHTML = json.insights ? renderMarkdown(json.insights) : "(backend returned no insights text)";
-
-    const dateEl = document.getElementById("insightsGeneratedDate");
-    if (dateEl) dateEl.textContent = `Generated ${new Date().toLocaleString()}`;
-
-    const card = document.getElementById("generatedInsights");
-    if (card) card.style.display = "block";
-
-    showToast("AI insights generated.", "success");
+    showToast("Gemini responded.", "success");
     saveSession();
   } catch (err) {
     console.error(err);
+    appState.insightsChatHistory.push({ role: "assistant", error: true, text: "Network error talking to backend.", at: new Date().toISOString() });
     showToast("Network error talking to backend.", "error");
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = "✓ Generate Insights";
+      btn.innerHTML = "✓ Ask Gemini";
     }
+    renderInsightsChatThread();
   }
+}
+
+function renderInsightsChatThread(opts = {}) {
+  const thread = document.getElementById("insightsChatThread");
+  const empty = document.getElementById("insightsChatEmpty");
+  const suggestions = document.getElementById("insightsChatSuggestions");
+  if (!thread) return;
+
+  const history = appState.insightsChatHistory || [];
+  const hasMessages = history.length > 0;
+  if (empty) empty.style.display = hasMessages ? "none" : "block";
+  if (suggestions) suggestions.style.display = hasMessages ? "none" : "flex";
+
+  let html = history.map(msg => {
+    if (msg.role === "user") {
+      return `<div class="chat-bubble user"><div class="chat-bubble-label">You</div>${escapeHtml(msg.text)}</div>`;
+    }
+    const cls = msg.error ? "chat-bubble assistant error" : "chat-bubble assistant";
+    return `<div class="${cls}"><div class="chat-bubble-label">Gemini</div><div class="insights-document-content">${renderMarkdown(msg.text)}</div></div>`;
+  }).join("");
+
+  if (opts.pending) {
+    html += `<div class="chat-bubble assistant"><div class="chat-bubble-label">Gemini</div><div class="chat-bubble-pending"><span class="spinner" aria-hidden="true"></span>Thinking...</div></div>`;
+  }
+
+  thread.innerHTML = html;
+  thread.scrollTop = thread.scrollHeight;
 }
 
 // ========= EXPORTS =========
@@ -2054,7 +2112,8 @@ function exportInsights() {
     },
     cleaningLog: appState.cleaningActions.history,
     quickInsights: appState.quickInsights,
-    aiInsights: appState.currentInsights || null
+    aiInsights: appState.currentInsights || null,
+    aiChatHistory: appState.insightsChatHistory || []
   };
   downloadFile(JSON.stringify(payload, null, 2), "datavizard_insights.json", "application/json");
   showToast("Insights exported.", "success");

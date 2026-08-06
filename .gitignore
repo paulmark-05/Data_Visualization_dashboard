@@ -63,6 +63,7 @@ public/uploads/
 venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Claude Code local dev config (machine-specific paths)
 .claude/

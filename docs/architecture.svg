@@ -1,0 +1,61 @@
+<svg viewBox="0 0 980 460" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <rect width="980" height="460" fill="#FAFAF7"/>
+
+  <!-- Browser box -->
+  <rect x="44" y="140" width="230" height="180" fill="#1A1A1A"/>
+  <rect x="36" y="132" width="230" height="180" fill="#B3D9FF" stroke="#1A1A1A" stroke-width="3"/>
+  <text x="151" y="168" text-anchor="middle" font-size="16" font-weight="900" fill="#1A1A1A" letter-spacing="0.5">BROWSER</text>
+  <text x="151" y="188" text-anchor="middle" font-size="11" font-weight="700" fill="#1A1A1A" letter-spacing="0.3">Vanilla JS · Chart.js</text>
+  <line x1="56" y1="200" x2="246" y2="200" stroke="#1A1A1A" stroke-width="1.5"/>
+  <text x="151" y="222" text-anchor="middle" font-size="12" fill="#1A1A1A">Upload CSV / Excel</text>
+  <text x="151" y="244" text-anchor="middle" font-size="12" fill="#1A1A1A">Clean · Filter · Chart</text>
+  <text x="151" y="266" text-anchor="middle" font-size="12" fill="#1A1A1A">AI chat + Export</text>
+  <text x="151" y="296" text-anchor="middle" font-size="11" font-weight="700" fill="#1A1A1A">localStorage session</text>
+
+  <!-- Arrow 1 -->
+  <line x1="278" y1="222" x2="368" y2="222" stroke="#1A1A1A" stroke-width="3"/>
+  <polygon points="368,215 382,222 368,229" fill="#1A1A1A"/>
+  <text x="323" y="210" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1A1A1A">HTTP / JSON</text>
+
+  <!-- FastAPI box -->
+  <rect x="398" y="90" width="260" height="280" fill="#1A1A1A"/>
+  <rect x="390" y="82" width="260" height="280" fill="#FFFAB3" stroke="#1A1A1A" stroke-width="3"/>
+  <text x="520" y="118" text-anchor="middle" font-size="16" font-weight="900" fill="#1A1A1A" letter-spacing="0.5">FASTAPI BACKEND</text>
+  <text x="520" y="138" text-anchor="middle" font-size="11" font-weight="700" fill="#1A1A1A">single Render Web Service</text>
+  <line x1="410" y1="152" x2="630" y2="152" stroke="#1A1A1A" stroke-width="1.5"/>
+
+  <rect x="412" y="166" width="236" height="50" fill="#FFD9B3" stroke="#1A1A1A" stroke-width="2"/>
+  <text x="530" y="186" text-anchor="middle" font-size="11.5" font-weight="800" fill="#1A1A1A">GET /</text>
+  <text x="530" y="202" text-anchor="middle" font-size="10.5" fill="#1A1A1A">StaticFiles → frontend/</text>
+
+  <rect x="412" y="226" width="236" height="50" fill="#D9B3FF" stroke="#1A1A1A" stroke-width="2"/>
+  <text x="530" y="246" text-anchor="middle" font-size="11.5" font-weight="800" fill="#1A1A1A">POST /api/insights</text>
+  <text x="530" y="262" text-anchor="middle" font-size="10.5" fill="#1A1A1A">clamp → pandas profile</text>
+
+  <rect x="412" y="286" width="236" height="50" fill="#B3FFD9" stroke="#1A1A1A" stroke-width="2"/>
+  <text x="530" y="306" text-anchor="middle" font-size="11.5" font-weight="800" fill="#1A1A1A">GET /health</text>
+  <text x="530" y="322" text-anchor="middle" font-size="10.5" fill="#1A1A1A">size limit + CORS middleware</text>
+
+  <!-- Arrow 2 -->
+  <line x1="658" y1="251" x2="748" y2="251" stroke="#1A1A1A" stroke-width="3"/>
+  <polygon points="748,244 762,251 748,258" fill="#1A1A1A"/>
+  <text x="703" y="239" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1A1A1A">prompt</text>
+
+  <!-- Gemini box -->
+  <rect x="786" y="180" width="160" height="140" fill="#1A1A1A"/>
+  <rect x="778" y="172" width="160" height="140" fill="#FFB3D9" stroke="#1A1A1A" stroke-width="3"/>
+  <text x="858" y="208" text-anchor="middle" font-size="14" font-weight="900" fill="#1A1A1A" letter-spacing="0.3">GEMINI</text>
+  <text x="858" y="226" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1A1A1A">gemini-2.5-flash</text>
+  <line x1="796" y1="238" x2="920" y2="238" stroke="#1A1A1A" stroke-width="1.5"/>
+  <text x="858" y="260" text-anchor="middle" font-size="11" fill="#1A1A1A">Analyzes profiled</text>
+  <text x="858" y="278" text-anchor="middle" font-size="11" fill="#1A1A1A">data + question</text>
+  <text x="858" y="296" text-anchor="middle" font-size="11" fill="#1A1A1A">Returns markdown</text>
+
+  <!-- Return arrow -->
+  <line x1="748" y1="330" x2="278" y2="330" stroke="#1A1A1A" stroke-width="2" stroke-dasharray="6,5"/>
+  <polygon points="278,323 264,330 278,337" fill="#1A1A1A"/>
+  <text x="513" y="352" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1A1A1A">insights markdown rendered client-side</text>
+
+  <!-- Footer -->
+  <text x="490" y="420" text-anchor="middle" font-size="11" fill="#555">No database — session state lives in the browser (localStorage); nothing is stored server-side.</text>
+</svg>

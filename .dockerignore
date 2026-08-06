@@ -1,0 +1,12 @@
+backend/venv/
+backend/.pytest_cache/
+backend/tests/
+**/__pycache__/
+**/*.pyc
+.git/
+.github/
+.claude/
+.env
+.env.local
+node_modules/
+*.md

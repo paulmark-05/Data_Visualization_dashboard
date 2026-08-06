@@ -127,6 +127,7 @@
 
                 <div class="welcome-cta">
                     <button class="btn-get-started" onclick="showUploadArea()">→ START ANALYZING</button>
+                    <button class="btn btn-secondary" onclick="loadSampleData()" style="display: block; margin: 16px auto 0;">▶ Try it with sample data</button>
                 </div>
             </div>
 
@@ -144,6 +145,7 @@
                             </svg>
                             <h3>Drag & drop your file here or click to browse</h3>
                             <p>Supported formats: .xlsx, .xls, .csv</p>
+                            <p style="margin-top: 8px;">or <a href="#" onclick="event.preventDefault(); event.stopPropagation(); loadSampleData();">try it with sample data</a></p>
                         </div>
                         <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display: none">
                     </div>
@@ -401,27 +403,27 @@
                 <h2 style="font-size: 36px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; margin-bottom: 32px;">AI Insights</h2>
                 <p style="margin-bottom: 24px; font-size: 14px; letter-spacing: 0.5px;">Automatically generated insights from your data</p>
 
-                <div class="card" style="margin-bottom: 30px; padding: 24px;">
-                    <div class="insights-request-card">
-                        <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Custom Insights with AI</h3>
-                        <p style="font-size: 13px; margin-bottom: 16px; letter-spacing: 0.3px;">Describe what insights you want to extract from your data (Powered by Gemini, via our backend)</p>
-                        <div class="insights-request-form">
-                            <textarea id="insightsRequest" placeholder="Example: Analyze sales trends by region, identify top performing products..." style="width: 100%; min-height: 100px; padding: 12px; font-family: monospace; font-size: 13px; letter-spacing: 0.3px; resize: vertical;"></textarea>
-                            <div class="insights-actions" style="display: flex; gap: 12px; margin-top: 16px;">
-                                <button class="btn btn-primary" id="generateInsightsBtn" onclick="generateInsightsDocument()" style="gap: 8px;">
-                                    ✓ Generate Insights
-                                </button>
-                            </div>
+                <div class="card ai-chat-card" style="margin-bottom: 30px; padding: 24px;">
+                    <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Ask AI About Your Data</h3>
+                    <p style="font-size: 13px; margin-bottom: 16px; letter-spacing: 0.3px;">Chat with Gemini about this dataset — ask follow-up questions, drill into a region, request a different angle.</p>
+
+                    <div id="insightsChatThread" class="insights-chat-thread" aria-live="polite"></div>
+                    <p id="insightsChatEmpty" class="insights-chat-empty">No questions yet. Try one of these, or ask your own below:</p>
+                    <div id="insightsChatSuggestions" class="insights-chat-suggestions">
+                        <button type="button" class="chip-btn" onclick="askSuggestedQuestion('Give me a 3-4 line executive summary of this dataset.')">Executive summary</button>
+                        <button type="button" class="chip-btn" onclick="askSuggestedQuestion('What are the top 3 risks or data-quality issues I should know about?')">Top risks</button>
+                        <button type="button" class="chip-btn" onclick="askSuggestedQuestion('Which segments or categories are driving the most value, and which are underperforming?')">Winners &amp; laggards</button>
+                        <button type="button" class="chip-btn" onclick="askSuggestedQuestion('Suggest 3 follow-up analyses or dashboard views I should build next.')">What's next?</button>
+                    </div>
+
+                    <div class="insights-request-form">
+                        <textarea id="insightsRequest" placeholder="Ask a question about this dataset..." aria-label="Ask AI a question about this dataset" style="width: 100%; min-height: 70px; padding: 12px; font-family: monospace; font-size: 13px; letter-spacing: 0.3px; resize: vertical;"></textarea>
+                        <div class="insights-actions" style="display: flex; gap: 12px; margin-top: 16px;">
+                            <button class="btn btn-primary" id="generateInsightsBtn" onclick="generateInsightsDocument()" style="gap: 8px;">
+                                ✓ Ask Gemini
+                            </button>
                         </div>
                     </div>
-                </div>
-
-                <div class="card" style="margin-bottom: 30px; display: none; padding: 24px;" id="generatedInsights">
-                    <div class="insights-document-header" style="margin-bottom: 20px; padding-bottom: 16px;">
-                        <h3 style="font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; margin: 0;">Generated Insights Document</h3>
-                        <span id="insightsGeneratedDate" style="font-size: 12px; letter-spacing: 0.3px;"></span>
-                    </div>
-                    <div id="insightsDocumentContent" class="insights-document-content" style="font-size: 13px; line-height: 1.6;"></div>
                 </div>
 
                 <div class="card" style="padding: 24px;">
