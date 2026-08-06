@@ -103,22 +103,22 @@
                 </div>
 
                 <div class="features-grid">
-                    <div class="feature-card" onclick="switchSection(null, 'visualizations')" style="cursor: pointer;">
+                    <div class="feature-card" onclick="switchSection(null, 'visualizations')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchSection(null,'visualizations');}" role="button" tabindex="0" style="cursor: pointer;">
                         <div class="feature-icon">📊</div>
                         <h3>Smart Visualizations</h3>
                         <p>Interactive charts, graphs, and heatmaps that reveal hidden patterns in your data.</p>
                     </div>
-                    <div class="feature-card" onclick="switchSection(null, 'quality')" style="cursor: pointer;">
+                    <div class="feature-card" onclick="switchSection(null, 'quality')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchSection(null,'quality');}" role="button" tabindex="0" style="cursor: pointer;">
                         <div class="feature-icon">🧹</div>
                         <h3>Data Cleaning</h3>
                         <p>Automatically detect and fix missing values, duplicates, and outliers with one click.</p>
                     </div>
-                    <div class="feature-card" onclick="switchSection(null, 'insights')" style="cursor: pointer;">
+                    <div class="feature-card" onclick="switchSection(null, 'insights')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchSection(null,'insights');}" role="button" tabindex="0" style="cursor: pointer;">
                         <div class="feature-icon">🤖</div>
                         <h3>AI Insights</h3>
                         <p>Get instant, contextual insights powered by Gemini, kept server-side and secure.</p>
                     </div>
-                    <div class="feature-card" onclick="switchSection(null, 'export')" style="cursor: pointer;">
+                    <div class="feature-card" onclick="switchSection(null, 'export')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchSection(null,'export');}" role="button" tabindex="0" style="cursor: pointer;">
                         <div class="feature-icon">📈</div>
                         <h3>Export & Share</h3>
                         <p>Download your analyses and reports in multiple formats for sharing with teams.</p>
@@ -227,7 +227,7 @@
                 <div class="viz-layout">
                     <!-- LEFT PANEL: FILTERS -->
                     <aside class="filters-sidebar card" id="filtersPanel" style="display: none">
-                        <div class="filters-header" onclick="toggleFiltersPanel()">
+                        <div class="filters-header" onclick="toggleFiltersPanel()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFiltersPanel();}" role="button" tabindex="0" aria-expanded="true" aria-controls="filtersContent">
                             <h3>
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
@@ -263,7 +263,7 @@
                                 </div>
                                 <div class="chart-controls">
                                     <div class="control-group">
-                                        <label>Select Column</label>
+                                        <label for="categoricalColumnSelect">Select Column</label>
                                         <select id="categoricalColumnSelect" class="chart-select" onchange="renderCategoricalChart(this.value)">
                                             <option value="">Choose a column...</option>
                                         </select>
@@ -289,7 +289,7 @@
                                 </div>
                                 <div class="chart-controls">
                                     <div class="control-group">
-                                        <label>Select Column</label>
+                                        <label for="numericColumnSelect">Select Column</label>
                                         <select id="numericColumnSelect" class="chart-select" onchange="renderNumericChart(this.value)">
                                             <option value="">Choose a column...</option>
                                         </select>
@@ -315,7 +315,7 @@
                                 </div>
                                 <div class="chart-controls">
                                     <div class="control-group">
-                                        <label>Select Column</label>
+                                        <label for="pieColumnSelect">Select Column</label>
                                         <select id="pieColumnSelect" class="chart-select" onchange="renderPieChartViz(this.value)">
                                             <option value="">Choose a column...</option>
                                         </select>
@@ -341,7 +341,7 @@
                                 </div>
                                 <div class="chart-controls">
                                     <div class="control-group">
-                                        <label>Chart Type</label>
+                                        <label for="comparisonChartType">Chart Type</label>
                                         <select id="comparisonChartType" class="chart-select" onchange="renderComparisonChart()">
                                             <option value="scatter">Scatter Plot</option>
                                             <option value="line">Line Chart</option>
@@ -349,19 +349,19 @@
                                         </select>
                                     </div>
                                     <div class="control-group">
-                                        <label>X-Axis</label>
+                                        <label for="xAxisSelect">X-Axis</label>
                                         <select id="xAxisSelect" class="chart-select" onchange="renderComparisonChart()">
                                             <option value="">Choose a column...</option>
                                         </select>
                                     </div>
                                     <div class="control-group">
-                                        <label>Y-Axis</label>
+                                        <label for="yAxisSelect">Y-Axis</label>
                                         <select id="yAxisSelect" class="chart-select" onchange="renderComparisonChart()">
                                             <option value="">Choose a column...</option>
                                         </select>
                                     </div>
                                     <div class="control-group">
-                                        <label>Group By</label>
+                                        <label for="groupBySelect">Group By</label>
                                         <select id="groupBySelect" class="chart-select" onchange="renderComparisonChart()">
                                             <option value="">No grouping</option>
                                         </select>

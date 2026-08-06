@@ -844,7 +844,7 @@ function generateDataQuality() {
         <button class="btn btn-secondary" onclick="undoLastCleaning()" ${appState.cleaningActions.undoStack.length === 0 ? "disabled" : ""}>↺ Undo Last Action</button>
       </div>
       <div class="cleaning-action-row" style="margin-bottom: 20px;">
-        <select id="outlierColumnSelect" class="chart-select" ${numericCols.length === 0 ? "disabled" : ""}>
+        <select id="outlierColumnSelect" class="chart-select" aria-label="Column to remove outliers from" ${numericCols.length === 0 ? "disabled" : ""}>
           <option value="">All numeric columns</option>
           ${numericCols.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}
         </select>
@@ -1047,7 +1047,7 @@ function generateFilters() {
     return `
       <div class="control-group" data-filter-label="${escapeHtml(col.toLowerCase())}">
         <label title="${escapeHtml(col)}">${escapeHtml(col)}</label>
-        <select data-role="filter-select" data-column="${escapeHtml(col)}" class="chart-select">
+        <select data-role="filter-select" data-column="${escapeHtml(col)}" class="chart-select" aria-label="Filter by ${escapeHtml(col)}">
           <option value="">All</option>
           ${uniqueValues.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("")}
         </select>
@@ -1198,7 +1198,10 @@ function clearAllFilters() {
 function toggleFiltersPanel() {
   const content = document.getElementById("filtersContent");
   if (!content) return;
-  content.style.display = content.style.display === "none" ? "block" : "none";
+  const isHidden = content.style.display === "none";
+  content.style.display = isHidden ? "block" : "none";
+  const header = document.querySelector(".filters-header");
+  if (header) header.setAttribute("aria-expanded", String(isHidden));
 }
 
 // ========= VISUALIZATIONS =========
@@ -1237,12 +1240,29 @@ function initializeVisualizations() {
   if (categoricalCols.length > 0) renderPieChartViz(categoricalCols[0]);
   else showChartEmptyState("pieChart", "No categorical columns detected in this dataset.");
 
-  if (columns.length >= 2) {
-    document.getElementById("xAxisSelect").value = columns[0];
-    document.getElementById("yAxisSelect").value = numericCols[0] || columns[1];
+  if (numericCols.length >= 1 && columns.length >= 2) {
+    const typeSelect = document.getElementById("comparisonChartType");
+    const xSelect = document.getElementById("xAxisSelect");
+    const ySelect = document.getElementById("yAxisSelect");
+
+    if (numericCols.length >= 2) {
+      // Two numeric columns make a numeric-vs-numeric scatter meaningful.
+      typeSelect.value = "scatter";
+      xSelect.value = numericCols[0];
+      ySelect.value = numericCols[1];
+    } else {
+      // Only one numeric column: defaulting to scatter would need a
+      // numeric X too, which - for a dataset whose first column is a
+      // non-numeric id/name (extremely common) - silently plots zero
+      // points with no explanation. A category-vs-number bar is what
+      // this data actually supports.
+      typeSelect.value = "bar";
+      xSelect.value = columns.find(c => c !== numericCols[0]) || columns[0];
+      ySelect.value = numericCols[0];
+    }
     renderComparisonChart();
   } else {
-    showChartEmptyState("comparisonChart", "Need at least 2 columns to compare.");
+    showChartEmptyState("comparisonChart", "Need at least one numeric column to compare.");
   }
 
   renderCorrelationHeatmap();
