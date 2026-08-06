@@ -914,6 +914,7 @@ function removeDuplicates() {
   appState.cleaningActions.removedDuplicates += removed;
   appState.cleaningActions.history.push(`Removed ${removed} duplicate rows.`);
   showToast(`Removed ${removed} duplicate rows.`, "success");
+  computeColumnStats(appState.cleanedData);
   reapplyActiveFilters();
   generateDataQuality();
   saveSession();
@@ -951,6 +952,7 @@ function fillMissing() {
   appState.cleaningActions.filledMissing += filled;
   appState.cleaningActions.history.push(`Filled ${filled} missing values.`);
   showToast(`Filled ${filled} missing values.`, "success");
+  computeColumnStats(appState.cleanedData);
   reapplyActiveFilters();
   generateDataQuality();
   saveSession();
@@ -989,6 +991,7 @@ function removeOutliers(column) {
     targetColumn ? `Removed ${removed} outlier rows (column: ${targetColumn}).` : `Removed ${removed} outlier rows.`
   );
   showToast(`Removed ${removed} outlier rows.`, "success");
+  computeColumnStats(appState.cleanedData);
   reapplyActiveFilters();
   generateDataQuality();
   saveSession();
@@ -1006,6 +1009,7 @@ function undoLastCleaning() {
   appState.cleaningActions.filledMissing = snapshot.filledMissing;
   appState.cleaningActions.removedOutliers = snapshot.removedOutliers;
   showToast("Last cleaning action undone.", "info");
+  computeColumnStats(appState.cleanedData);
   reapplyActiveFilters();
   generateDataQuality();
   saveSession();
