@@ -911,6 +911,8 @@ function generateDataQuality() {
   container.innerHTML = html;
 }
 
+const MAX_UNDO_DEPTH = 10;
+
 function pushUndoSnapshot() {
   appState.cleaningActions.undoStack.push({
     cleanedData: JSON.parse(JSON.stringify(appState.cleanedData)),
@@ -918,20 +920,31 @@ function pushUndoSnapshot() {
     filledMissing: appState.cleaningActions.filledMissing,
     removedOutliers: appState.cleaningActions.removedOutliers
   });
+  // Each snapshot is a full deep clone of the dataset - cap depth so
+  // repeated cleaning clicks on a large dataset can't grow this unbounded.
+  if (appState.cleaningActions.undoStack.length > MAX_UNDO_DEPTH) {
+    appState.cleaningActions.undoStack.shift();
+  }
 }
 
 function removeDuplicates() {
-  pushUndoSnapshot();
   const before = appState.cleanedData.length;
   const seen = new Set();
-  appState.cleanedData = appState.cleanedData.filter(row => {
+  const deduped = appState.cleanedData.filter(row => {
     const key = JSON.stringify(row);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+  const removed = before - deduped.length;
 
-  const removed = before - appState.cleanedData.length;
+  if (removed === 0) {
+    showToast("No duplicate rows found.", "info");
+    return;
+  }
+
+  pushUndoSnapshot();
+  appState.cleanedData = deduped;
   appState.cleaningActions.removedDuplicates += removed;
   appState.cleaningActions.history.push(`Removed ${removed} duplicate rows.`);
   showToast(`Removed ${removed} duplicate rows.`, "success");
@@ -944,6 +957,15 @@ function removeDuplicates() {
 function fillMissing() {
   const data = appState.cleanedData;
   if (!data || data.length === 0) return;
+
+  const hasMissing = Object.keys(data[0]).some(col =>
+    data.some(row => row[col] === "" || row[col] === null || row[col] === undefined)
+  );
+  if (!hasMissing) {
+    showToast("No missing values found.", "info");
+    return;
+  }
+
   pushUndoSnapshot();
   let filled = 0;
 
@@ -982,7 +1004,6 @@ function fillMissing() {
 function removeOutliers(column) {
   const data = appState.cleanedData;
   if (!data || data.length === 0) return;
-  pushUndoSnapshot();
 
   const targetColumn = column || null;
   const outliers = detectOutliersWithDetails(data, targetColumn);
@@ -1003,6 +1024,12 @@ function removeOutliers(column) {
     });
   });
 
+  if (outlierRowIndexes.size === 0) {
+    showToast("No outliers found.", "info");
+    return;
+  }
+
+  pushUndoSnapshot();
   const before = data.length;
   appState.cleanedData = data.filter((row, idx) => !outlierRowIndexes.has(idx));
   const removed = before - appState.cleanedData.length;
@@ -1919,8 +1946,11 @@ async function generateInsightsDocument() {
     if (!res.ok) {
       const txt = await res.text();
       console.error("Backend error:", txt);
-      appState.insightsChatHistory.push({ role: "assistant", error: true, text: "Backend insights request failed. Check server logs.", at: new Date().toISOString() });
-      showToast("Backend insights failed. Check server logs.", "error");
+      const friendly = res.status === 429
+        ? "You're sending requests a bit too fast. Please wait a minute and try again."
+        : "Backend insights request failed. Check server logs.";
+      appState.insightsChatHistory.push({ role: "assistant", error: true, text: friendly, at: new Date().toISOString() });
+      showToast(res.status === 429 ? "Rate limited - please wait a moment." : "Backend insights failed. Check server logs.", "error");
       return;
     }
 
